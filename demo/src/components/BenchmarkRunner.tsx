@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Play, Loader } from 'lucide-react';
+import type { WorkerMessage, WorkerResponse } from '../workers/benchmark.worker';
 
 interface Props {
-  wasmModule: any;
+  worker: Worker | null;
   onResults: (results: BenchmarkResult) => void;
 }
 
@@ -18,7 +19,7 @@ export interface BenchmarkResult {
 const MATRIX_SIZES = [128, 256, 512, 1024, 2048];
 const ARRAY_SIZES = [10000, 50000, 100000, 500000, 1000000];
 
-export default function BenchmarkRunner({ wasmModule, onResults }: Props) {
+export default function BenchmarkRunner({ worker, onResults }: Props) {
   const [operation, setOperation] = useState<'matmul' | 'sin' | 'exp'>('matmul');
   const [size, setSize] = useState(512);
   const [running, setRunning] = useState(false);
@@ -26,159 +27,61 @@ export default function BenchmarkRunner({ wasmModule, onResults }: Props) {
 
   const sizes = operation === 'matmul' ? MATRIX_SIZES : ARRAY_SIZES;
 
-  async function runBenchmark() {
+  useEffect(() => {
+    if (!worker) return;
+
+    // Listen for messages from worker
+    const handleMessage = (event: MessageEvent<WorkerResponse>) => {
+      const response = event.data;
+
+      switch (response.type) {
+        case 'progress':
+          setProgress(response.message);
+          break;
+
+        case 'result':
+          onResults({
+            matrixSize: response.size,
+            cpuTime: response.cpuTime,
+            gpuTime: response.gpuTime,
+            speedup: response.speedup,
+            correct: response.correct,
+            operation: response.operation,
+          });
+          setProgress('');
+          setRunning(false);
+          break;
+
+        case 'error':
+          console.error('Worker error:', response.error);
+          setProgress(`Error: ${response.error}`);
+          setRunning(false);
+          break;
+      }
+    };
+
+    worker.addEventListener('message', handleMessage);
+
+    return () => {
+      worker.removeEventListener('message', handleMessage);
+    };
+  }, [worker, onResults]);
+
+  function runBenchmark() {
+    if (!worker) {
+      setProgress('Worker not initialized');
+      return;
+    }
+
     setRunning(true);
-    setProgress('Generating test data...');
+    setProgress('Starting benchmark...');
 
-    try {
-      if (operation === 'matmul') {
-        await runMatmulBenchmark();
-      } else if (operation === 'sin') {
-        await runSinBenchmark();
-      } else if (operation === 'exp') {
-        await runExpBenchmark();
-      }
-
-      setProgress('');
-    } catch (err) {
-      console.error('Benchmark failed:', err);
-      setProgress(`Error: ${err}`);
-    } finally {
-      setRunning(false);
-    }
-  }
-
-  async function runMatmulBenchmark() {
-    // Generate random matrices
-    const a = wasmModule.generate_random_matrix(size, size);
-    const b = wasmModule.generate_random_matrix(size, size);
-
-    // Run CPU benchmark
-    setProgress('Running CPU matrix multiplication...');
-    const cpuStart = performance.now();
-    const cpuResult = wasmModule.matmul_cpu(a, b, size);
-    const cpuTime = performance.now() - cpuStart;
-
-    // Small delay to ensure GPU is ready
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    // Run GPU benchmark
-    setProgress('Running GPU matrix multiplication...');
-    const gpuStart = performance.now();
-    const gpuResult = wasmModule.matmul_gpu(a, b, size);
-    const gpuTime = performance.now() - gpuStart;
-
-    // Verify correctness (check subset)
-    setProgress('Verifying results...');
-    let correct = true;
-    const checkCount = Math.min(100, size * size);
-    for (let i = 0; i < checkCount; i++) {
-      const diff = Math.abs(cpuResult[i] - gpuResult[i]);
-      if (diff > 0.01) {
-        correct = false;
-        console.warn(`Mismatch at index ${i}: CPU=${cpuResult[i]}, GPU=${gpuResult[i]}`);
-        break;
-      }
-    }
-
-    const speedup = cpuTime / gpuTime;
-
-    onResults({
-      matrixSize: size,
-      cpuTime,
-      gpuTime,
-      speedup,
-      correct,
-      operation: 'matmul',
-    });
-  }
-
-  async function runSinBenchmark() {
-    // Generate random array
-    const input = wasmModule.generate_random_array(size);
-
-    // Run CPU benchmark
-    setProgress('Running CPU sin...');
-    const cpuStart = performance.now();
-    const cpuResult = wasmModule.sin_cpu(input);
-    const cpuTime = performance.now() - cpuStart;
-
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    // Run GPU benchmark
-    setProgress('Running GPU sin...');
-    const gpuStart = performance.now();
-    const gpuResult = wasmModule.sin_gpu(input);
-    const gpuTime = performance.now() - gpuStart;
-
-    // Verify correctness
-    setProgress('Verifying results...');
-    let correct = true;
-    const checkCount = Math.min(1000, size);
-    for (let i = 0; i < checkCount; i++) {
-      const diff = Math.abs(cpuResult[i] - gpuResult[i]);
-      if (diff > 1e-5) {
-        correct = false;
-        break;
-      }
-    }
-
-    const speedup = cpuTime / gpuTime;
-
-    onResults({
-      matrixSize: size,
-      cpuTime,
-      gpuTime,
-      speedup,
-      correct,
-      operation: 'sin',
-    });
-  }
-
-  async function runExpBenchmark() {
-    // Generate random array (smaller values for exp)
-    const input = new Float32Array(size);
-    for (let i = 0; i < size; i++) {
-      input[i] = Math.random() * 2; // Keep values small for exp
-    }
-
-    // Run CPU benchmark
-    setProgress('Running CPU exp...');
-    const cpuStart = performance.now();
-    const cpuResult = wasmModule.exp_cpu(input);
-    const cpuTime = performance.now() - cpuStart;
-
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    // Run GPU benchmark
-    setProgress('Running GPU exp...');
-    const gpuStart = performance.now();
-    const gpuResult = wasmModule.exp_gpu(input);
-    const gpuTime = performance.now() - gpuStart;
-
-    // Verify correctness
-    setProgress('Verifying results...');
-    let correct = true;
-    const checkCount = Math.min(1000, size);
-    for (let i = 0; i < checkCount; i++) {
-      const diff = Math.abs(cpuResult[i] - gpuResult[i]);
-      const relativeError = diff / Math.max(cpuResult[i], 1e-6);
-      if (relativeError > 1e-4) {
-        correct = false;
-        break;
-      }
-    }
-
-    const speedup = cpuTime / gpuTime;
-
-    onResults({
-      matrixSize: size,
-      cpuTime,
-      gpuTime,
-      speedup,
-      correct,
-      operation: 'exp',
-    });
+    // Send benchmark request to worker
+    worker.postMessage({
+      type: 'benchmark',
+      operation,
+      size,
+    } as WorkerMessage);
   }
 
   return (
@@ -243,7 +146,7 @@ export default function BenchmarkRunner({ wasmModule, onResults }: Props) {
       <button
         className="run-button"
         onClick={runBenchmark}
-        disabled={running}
+        disabled={running || !worker}
       >
         {running ? (
           <>

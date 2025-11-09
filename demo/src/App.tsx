@@ -3,42 +3,64 @@ import { AlertCircle, Zap } from 'lucide-react';
 import BenchmarkRunner, { BenchmarkResult } from './components/BenchmarkRunner';
 import ResultsDisplay from './components/ResultsDisplay';
 import GPUInfo from './components/GPUInfo';
+import type { WorkerMessage, WorkerResponse } from './workers/benchmark.worker';
 import './styles/app.css';
 
 export default function App() {
-  const [wasmModule, setWasmModule] = useState<any>(null);
+  const [worker, setWorker] = useState<Worker | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [gpuAvailable, setGpuAvailable] = useState(false);
+  const [initProgress, setInitProgress] = useState('Initializing...');
   const [results, setResults] = useState<BenchmarkResult[]>([]);
 
   useEffect(() => {
-    async function initWasm() {
-      try {
-        if (!navigator.gpu) {
-          setError('WebGPU is not supported in this browser. Please use Chrome 113+ or Edge 113+.');
-          setLoading(false);
-          return;
-        }
-
-        // Load WASM module
-        const wasmModule = await import('../pkg/numpy_rust');
-
-        // Initialize WASM (required before calling any functions)
-        await wasmModule.default();
-
-        // Initialize GPU
-        await wasmModule.init_gpu();
-
-        setWasmModule(wasmModule);
-        setLoading(false);
-      } catch (err) {
-        console.error('Failed to initialize WASM:', err);
-        setError(`WASM initialization failed: ${err}`);
-        setLoading(false);
-      }
+    // Check WebGPU support
+    if (!navigator.gpu) {
+      setError('WebGPU is not supported in this browser. Please use Chrome 113+ or Edge 113+.');
+      setLoading(false);
+      return;
     }
 
-    initWasm();
+    // Create Web Worker
+    const benchmarkWorker = new Worker(
+      new URL('./workers/benchmark.worker.ts', import.meta.url),
+      { type: 'module' }
+    );
+
+    // Listen for messages from worker
+    benchmarkWorker.addEventListener('message', (event: MessageEvent<WorkerResponse>) => {
+      const response = event.data;
+
+      switch (response.type) {
+        case 'init_success':
+          setGpuAvailable(response.gpuAvailable);
+          setLoading(false);
+          setWorker(benchmarkWorker);
+          break;
+
+        case 'init_error':
+          setError(`Worker initialization failed: ${response.error}`);
+          setLoading(false);
+          break;
+
+        case 'progress':
+          setInitProgress(response.message);
+          break;
+
+        case 'error':
+          // Errors during benchmark are handled by BenchmarkRunner
+          break;
+      }
+    });
+
+    // Initialize the worker
+    benchmarkWorker.postMessage({ type: 'init' } as WorkerMessage);
+
+    // Cleanup on unmount
+    return () => {
+      benchmarkWorker.terminate();
+    };
   }, []);
 
   function handleResults(result: BenchmarkResult) {
@@ -49,7 +71,7 @@ export default function App() {
     return (
       <div className="loading-screen">
         <div className="spinner"></div>
-        <p>Checking WebGPU support...</p>
+        <p>{initProgress}</p>
       </div>
     );
   }
@@ -58,7 +80,7 @@ export default function App() {
     return (
       <div className="error-screen">
         <AlertCircle size={48} />
-        <h2>WebGPU Not Available</h2>
+        <h2>Initialization Failed</h2>
         <p>{error}</p>
         <div className="error-help">
           <h3>Requirements:</h3>
@@ -84,7 +106,7 @@ export default function App() {
             GPU-accelerated matrix operations in your browser
           </p>
         </div>
-        {wasmModule && <GPUInfo wasmModule={wasmModule} />}
+        <GPUInfo gpuAvailable={gpuAvailable} />
       </header>
 
       <main className="app-main">
@@ -93,11 +115,12 @@ export default function App() {
           <p>
             Compare CPU vs GPU performance for matrix multiplication and element-wise operations.
             Run benchmarks below to see the speedup achieved by GPU acceleration.
+            {!gpuAvailable && ' (Running in CPU-only mode)'}
           </p>
         </section>
 
         <section className="benchmark-section">
-          <BenchmarkRunner wasmModule={wasmModule} onResults={handleResults} />
+          <BenchmarkRunner worker={worker} onResults={handleResults} />
         </section>
 
         <section className="results-section">
@@ -114,8 +137,8 @@ export default function App() {
             <p>GPU sin, cos, exp, log with 50-200x speedup for arrays ≥100K elements</p>
           </div>
           <div className="feature-card">
-            <h3>Cross-platform</h3>
-            <p>Works on Vulkan, Metal, DX12, and WebGPU backends</p>
+            <h3>Non-blocking Execution</h3>
+            <p>Benchmarks run in a Web Worker, keeping the UI responsive</p>
           </div>
         </section>
       </main>
