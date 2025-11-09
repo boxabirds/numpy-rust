@@ -28,10 +28,8 @@ fn matmul_tiled(
     let local_row = local_id.y;
     let local_col = local_id.x;
 
-    // Early exit for out-of-bounds threads
-    if (row >= m || col >= n) {
-        return;
-    }
+    // Check bounds but don't exit early (to maintain uniform control flow)
+    let valid_thread = row < m && col < n;
 
     var sum = 0.0;
 
@@ -44,7 +42,7 @@ fn matmul_tiled(
 
         // Load tile of A into shared memory
         let a_col = k_offset + local_col;
-        if (a_col < k) {
+        if (row < m && a_col < k) {
             tile_a[local_row * TILE_SIZE + local_col] = a[row * k + a_col];
         } else {
             tile_a[local_row * TILE_SIZE + local_col] = 0.0;
@@ -52,25 +50,29 @@ fn matmul_tiled(
 
         // Load tile of B into shared memory
         let b_row = k_offset + local_row;
-        if (b_row < k) {
+        if (b_row < k && col < n) {
             tile_b[local_row * TILE_SIZE + local_col] = b[b_row * n + col];
         } else {
             tile_b[local_row * TILE_SIZE + local_col] = 0.0;
         }
 
-        // Synchronize workgroup
+        // Synchronize workgroup - all threads must reach here
         workgroupBarrier();
 
         // Compute partial dot product using shared memory
-        for (var i = 0u; i < TILE_SIZE; i = i + 1u) {
-            sum = sum + tile_a[local_row * TILE_SIZE + i] *
-                       tile_b[i * TILE_SIZE + local_col];
+        if (valid_thread) {
+            for (var i = 0u; i < TILE_SIZE; i = i + 1u) {
+                sum = sum + tile_a[local_row * TILE_SIZE + i] *
+                           tile_b[i * TILE_SIZE + local_col];
+            }
         }
 
-        // Synchronize before loading next tile
+        // Synchronize before loading next tile - all threads must reach here
         workgroupBarrier();
     }
 
-    // Write result
-    c[row * n + col] = sum;
+    // Write result only if thread is valid
+    if (valid_thread) {
+        c[row * n + col] = sum;
+    }
 }
