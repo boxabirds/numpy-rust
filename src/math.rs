@@ -3,27 +3,64 @@
 //! This module provides element-wise mathematical operations similar to NumPy's
 //! mathematical functions.
 
-use ndarray::{Array, ArrayBase, Data, Dimension};
+use ndarray::{Array, ArrayBase, Data, DataMut, Dimension};
 use num_traits::{Float, Num, Zero, One};
+use rayon::prelude::*;
+
+/// Threshold for using parallel operations (tuned for typical workloads)
+const PARALLEL_THRESHOLD: usize = 10_000;
 
 /// Compute sine element-wise
 pub fn sin<S, D>(arr: &ArrayBase<S, D>) -> Array<S::Elem, D>
 where
     S: Data,
+    S::Elem: Float + Send + Sync,
+    D: Dimension,
+{
+    if arr.len() >= PARALLEL_THRESHOLD {
+        // Use parallel mapping for large arrays
+        let mut result = Array::zeros(arr.raw_dim());
+        ndarray::par_azip!((x in arr, y in &mut result) *y = x.sin());
+        result
+    } else {
+        arr.mapv(|x| x.sin())
+    }
+}
+
+/// Compute sine element-wise in-place
+pub fn sin_mut<S, D>(arr: &mut ArrayBase<S, D>)
+where
+    S: DataMut,
     S::Elem: Float,
     D: Dimension,
 {
-    arr.mapv(|x| x.sin())
+    arr.mapv_inplace(|x| x.sin());
 }
 
 /// Compute cosine element-wise
 pub fn cos<S, D>(arr: &ArrayBase<S, D>) -> Array<S::Elem, D>
 where
     S: Data,
+    S::Elem: Float + Send + Sync,
+    D: Dimension,
+{
+    if arr.len() >= PARALLEL_THRESHOLD {
+        let mut result = Array::zeros(arr.raw_dim());
+        ndarray::par_azip!((x in arr, y in &mut result) *y = x.cos());
+        result
+    } else {
+        arr.mapv(|x| x.cos())
+    }
+}
+
+/// Compute cosine element-wise in-place
+pub fn cos_mut<S, D>(arr: &mut ArrayBase<S, D>)
+where
+    S: DataMut,
     S::Elem: Float,
     D: Dimension,
 {
-    arr.mapv(|x| x.cos())
+    arr.mapv_inplace(|x| x.cos());
 }
 
 /// Compute tangent element-wise
@@ -110,10 +147,26 @@ where
 pub fn exp<S, D>(arr: &ArrayBase<S, D>) -> Array<S::Elem, D>
 where
     S: Data,
+    S::Elem: Float + Send + Sync,
+    D: Dimension,
+{
+    if arr.len() >= PARALLEL_THRESHOLD {
+        let mut result = Array::zeros(arr.raw_dim());
+        ndarray::par_azip!((x in arr, y in &mut result) *y = x.exp());
+        result
+    } else {
+        arr.mapv(|x| x.exp())
+    }
+}
+
+/// Compute natural exponential element-wise in-place
+pub fn exp_mut<S, D>(arr: &mut ArrayBase<S, D>)
+where
+    S: DataMut,
     S::Elem: Float,
     D: Dimension,
 {
-    arr.mapv(|x| x.exp())
+    arr.mapv_inplace(|x| x.exp());
 }
 
 /// Compute exp(x) - 1 element-wise
@@ -140,10 +193,26 @@ where
 pub fn log<S, D>(arr: &ArrayBase<S, D>) -> Array<S::Elem, D>
 where
     S: Data,
+    S::Elem: Float + Send + Sync,
+    D: Dimension,
+{
+    if arr.len() >= PARALLEL_THRESHOLD {
+        let mut result = Array::zeros(arr.raw_dim());
+        ndarray::par_azip!((x in arr, y in &mut result) *y = x.ln());
+        result
+    } else {
+        arr.mapv(|x| x.ln())
+    }
+}
+
+/// Compute natural logarithm element-wise in-place
+pub fn log_mut<S, D>(arr: &mut ArrayBase<S, D>)
+where
+    S: DataMut,
     S::Elem: Float,
     D: Dimension,
 {
-    arr.mapv(|x| x.ln())
+    arr.mapv_inplace(|x| x.ln());
 }
 
 /// Compute log(1 + x) element-wise
@@ -318,20 +387,44 @@ where
 pub fn sum<S, D>(arr: &ArrayBase<S, D>) -> S::Elem
 where
     S: Data,
-    S::Elem: Num + Clone + Zero,
+    S::Elem: Num + Clone + Zero + Send + Sync,
     D: Dimension,
 {
-    arr.iter().cloned().fold(Zero::zero(), |acc, x| acc + x)
+    if arr.len() >= PARALLEL_THRESHOLD {
+        // Use parallel reduction for large arrays
+        if let Some(slice) = arr.as_slice_memory_order() {
+            slice.par_iter()
+                .cloned()
+                .reduce(|| Zero::zero(), |acc, x| acc + x)
+        } else {
+            // Fallback for non-contiguous arrays
+            arr.iter().cloned().fold(Zero::zero(), |acc, x| acc + x)
+        }
+    } else {
+        arr.iter().cloned().fold(Zero::zero(), |acc, x| acc + x)
+    }
 }
 
 /// Product of array elements
 pub fn prod<S, D>(arr: &ArrayBase<S, D>) -> S::Elem
 where
     S: Data,
-    S::Elem: Num + Clone + One,
+    S::Elem: Num + Clone + One + Send + Sync,
     D: Dimension,
 {
-    arr.iter().cloned().fold(One::one(), |acc, x| acc * x)
+    if arr.len() >= PARALLEL_THRESHOLD {
+        // Use parallel reduction for large arrays
+        if let Some(slice) = arr.as_slice_memory_order() {
+            slice.par_iter()
+                .cloned()
+                .reduce(|| One::one(), |acc, x| acc * x)
+        } else {
+            // Fallback for non-contiguous arrays
+            arr.iter().cloned().fold(One::one(), |acc, x| acc * x)
+        }
+    } else {
+        arr.iter().cloned().fold(One::one(), |acc, x| acc * x)
+    }
 }
 
 /// Cumulative sum of array elements

@@ -6,7 +6,53 @@ use ndarray::{Array1, Array2, ArrayBase, Data, Ix2};
 use num_traits::{Float, Num, Zero};
 use crate::error::{NumpyError, Result};
 
-/// Matrix multiplication
+/// Optimized 2x2 matrix multiplication (fully unrolled)
+#[inline(always)]
+fn matmul_2x2<T: Num + Copy>(a: &Array2<T>, b: &Array2<T>) -> Array2<T> {
+    let mut result = Array2::zeros((2, 2));
+
+    result[[0, 0]] = a[[0, 0]] * b[[0, 0]] + a[[0, 1]] * b[[1, 0]];
+    result[[0, 1]] = a[[0, 0]] * b[[0, 1]] + a[[0, 1]] * b[[1, 1]];
+    result[[1, 0]] = a[[1, 0]] * b[[0, 0]] + a[[1, 1]] * b[[1, 0]];
+    result[[1, 1]] = a[[1, 0]] * b[[0, 1]] + a[[1, 1]] * b[[1, 1]];
+
+    result
+}
+
+/// Optimized 3x3 matrix multiplication (fully unrolled)
+#[inline(always)]
+fn matmul_3x3<T: Num + Copy>(a: &Array2<T>, b: &Array2<T>) -> Array2<T> {
+    let mut result = Array2::zeros((3, 3));
+
+    for i in 0..3 {
+        for j in 0..3 {
+            result[[i, j]] = a[[i, 0]] * b[[0, j]]
+                + a[[i, 1]] * b[[1, j]]
+                + a[[i, 2]] * b[[2, j]];
+        }
+    }
+
+    result
+}
+
+/// Optimized 4x4 matrix multiplication (fully unrolled)
+#[inline(always)]
+fn matmul_4x4<T: Num + Copy>(a: &Array2<T>, b: &Array2<T>) -> Array2<T> {
+    let mut result = Array2::zeros((4, 4));
+
+    for i in 0..4 {
+        for j in 0..4 {
+            result[[i, j]] = a[[i, 0]] * b[[0, j]]
+                + a[[i, 1]] * b[[1, j]]
+                + a[[i, 2]] * b[[2, j]]
+                + a[[i, 3]] * b[[3, j]];
+        }
+    }
+
+    result
+}
+
+/// Matrix multiplication with optimizations for small matrices
 pub fn matmul<S1, S2>(
     a: &ArrayBase<S1, Ix2>,
     b: &ArrayBase<S2, Ix2>,
@@ -22,6 +68,18 @@ where
             got: vec![b.nrows(), b.ncols()],
         });
     }
+
+    // Fast paths for small square matrices
+    let shape = a.shape();
+    if shape == [2, 2] && b.shape() == [2, 2] {
+        return Ok(matmul_2x2(&a.to_owned(), &b.to_owned()));
+    } else if shape == [3, 3] && b.shape() == [3, 3] {
+        return Ok(matmul_3x3(&a.to_owned(), &b.to_owned()));
+    } else if shape == [4, 4] && b.shape() == [4, 4] {
+        return Ok(matmul_4x4(&a.to_owned(), &b.to_owned()));
+    }
+
+    // General case uses ndarray's optimized matrixmultiply
     Ok(a.dot(b))
 }
 
