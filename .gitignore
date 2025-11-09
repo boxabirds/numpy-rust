@@ -1,1 +1,8 @@
 /target
+
+# Node/Bun dependencies
+node_modules/
+bun.lock
+
+# WASM build output
+pkg/
