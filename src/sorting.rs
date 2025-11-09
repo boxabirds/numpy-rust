@@ -3,8 +3,8 @@
 //! This module provides functions for sorting and searching arrays,
 //! similar to NumPy's sorting functions.
 
-use ndarray::{Array1, ArrayBase, Axis, Data, Ix1};
-use num_traits::{Float, Num};
+use ndarray::{Array1, ArrayBase, Data, Ix1};
+use num_traits::{Float, Num, Zero};
 use crate::error::{NumpyError, Result};
 
 /// Sort an array in-place
@@ -301,13 +301,14 @@ where
 pub fn nonzero<S>(arr: &ArrayBase<S, Ix1>) -> Array1<usize>
 where
     S: Data,
-    S::Elem: Num + PartialEq,
+    S::Elem: Num + PartialEq + Zero + Copy,
 {
+    let zero = Zero::zero();
     let indices: Vec<usize> = arr
         .iter()
         .enumerate()
         .filter_map(|(i, &val)| {
-            if val != S::Elem::zero() {
+            if val != zero {
                 Some(i)
             } else {
                 None

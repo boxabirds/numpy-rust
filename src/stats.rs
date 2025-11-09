@@ -3,8 +3,7 @@
 //! This module provides statistical functions similar to NumPy's statistical
 //! functions, leveraging ndarray-stats where applicable.
 
-use ndarray::{Array, Array1, ArrayBase, Axis, Data, Dimension};
-use ndarray_stats::{QuantileExt, SummaryStatisticsExt};
+use ndarray::{Array1, ArrayBase, Data, Dimension};
 use num_traits::Float;
 use crate::error::{NumpyError, Result};
 

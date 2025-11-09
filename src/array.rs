@@ -3,7 +3,7 @@
 //! This module provides functions for creating arrays with various patterns
 //! and initialization strategies.
 
-use ndarray::{Array, Array1, Array2, ArrayD, Dim, Dimension, IxDyn, ShapeBuilder};
+use ndarray::{Array1, Array2, ArrayD, IxDyn};
 use num_traits::{Float, Num, One, Zero};
 use crate::error::{NumpyError, Result};
 
@@ -266,7 +266,7 @@ pub fn triu<T: Zero + One + Clone>(n: usize, m: Option<usize>, k: isize) -> Arra
 /// let y = arange(0.0, 2.0, 1.0).unwrap();
 /// let (xx, yy) = meshgrid(&x, &y);
 /// ```
-pub fn meshgrid<T: Clone>(x: &Array1<T>, y: &Array1<T>) -> (Array2<T>, Array2<T>) {
+pub fn meshgrid<T: Clone + Zero>(x: &Array1<T>, y: &Array1<T>) -> (Array2<T>, Array2<T>) {
     let nx = x.len();
     let ny = y.len();
 

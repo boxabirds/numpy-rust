@@ -4,7 +4,7 @@
 //! mathematical functions.
 
 use ndarray::{Array, ArrayBase, Data, Dimension};
-use num_traits::{Float, Num};
+use num_traits::{Float, Num, Zero, One};
 use num_complex::Complex;
 
 /// Compute sine element-wise
@@ -221,16 +221,18 @@ where
 pub fn sign<S, D>(arr: &ArrayBase<S, D>) -> Array<S::Elem, D>
 where
     S: Data,
-    S::Elem: Float,
+    S::Elem: Float + Zero + One,
     D: Dimension,
 {
     arr.mapv(|x| {
-        if x > S::Elem::zero() {
-            S::Elem::one()
-        } else if x < S::Elem::zero() {
-            -S::Elem::one()
+        let zero = S::Elem::zero();
+        let one = S::Elem::one();
+        if x > zero {
+            one
+        } else if x < zero {
+            -one
         } else {
-            S::Elem::zero()
+            zero
         }
     })
 }
@@ -317,30 +319,30 @@ where
 pub fn sum<S, D>(arr: &ArrayBase<S, D>) -> S::Elem
 where
     S: Data,
-    S::Elem: Num + Clone,
+    S::Elem: Num + Clone + Zero,
     D: Dimension,
 {
-    arr.iter().cloned().fold(S::Elem::zero(), |acc, x| acc + x)
+    arr.iter().cloned().fold(Zero::zero(), |acc, x| acc + x)
 }
 
 /// Product of array elements
 pub fn prod<S, D>(arr: &ArrayBase<S, D>) -> S::Elem
 where
     S: Data,
-    S::Elem: Num + Clone,
+    S::Elem: Num + Clone + One,
     D: Dimension,
 {
-    arr.iter().cloned().fold(S::Elem::one(), |acc, x| acc * x)
+    arr.iter().cloned().fold(One::one(), |acc, x| acc * x)
 }
 
 /// Cumulative sum of array elements
 pub fn cumsum<S>(arr: &ArrayBase<S, ndarray::Ix1>) -> Array<S::Elem, ndarray::Ix1>
 where
     S: Data,
-    S::Elem: Num + Clone,
+    S::Elem: Num + Clone + Zero,
 {
     let mut result = Vec::with_capacity(arr.len());
-    let mut acc = S::Elem::zero();
+    let mut acc = Zero::zero();
     for &x in arr.iter() {
         acc = acc + x.clone();
         result.push(acc.clone());
@@ -352,10 +354,10 @@ where
 pub fn cumprod<S>(arr: &ArrayBase<S, ndarray::Ix1>) -> Array<S::Elem, ndarray::Ix1>
 where
     S: Data,
-    S::Elem: Num + Clone,
+    S::Elem: Num + Clone + One,
 {
     let mut result = Vec::with_capacity(arr.len());
-    let mut acc = S::Elem::one();
+    let mut acc = One::one();
     for &x in arr.iter() {
         acc = acc * x.clone();
         result.push(acc.clone());
@@ -416,11 +418,11 @@ pub fn dot<S1, S2>(a: &ArrayBase<S1, ndarray::Ix1>, b: &ArrayBase<S2, ndarray::I
 where
     S1: Data,
     S2: Data<Elem = S1::Elem>,
-    S1::Elem: Num + Clone,
+    S1::Elem: Num + Clone + Zero + Copy,
 {
     ndarray::Zip::from(a)
         .and(b)
-        .fold(S1::Elem::zero(), |acc, &x, &y| acc + x * y)
+        .fold(Zero::zero(), |acc, &x, &y| acc + x * y)
 }
 
 /// Convolve two 1-dimensional arrays
@@ -431,7 +433,7 @@ pub fn convolve<S1, S2>(
 where
     S1: Data,
     S2: Data<Elem = S1::Elem>,
-    S1::Elem: Num + Clone,
+    S1::Elem: Num + Clone + Zero,
 {
     let n = a.len();
     let m = v.len();
@@ -440,7 +442,7 @@ where
     }
 
     let result_len = n + m - 1;
-    let mut result = vec![S1::Elem::zero(); result_len];
+    let mut result = vec![Zero::zero(); result_len];
 
     for i in 0..n {
         for j in 0..m {
