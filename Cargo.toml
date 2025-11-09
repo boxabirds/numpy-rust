@@ -38,12 +38,13 @@ web-sys = { version = "0.3", optional = true, features = ["Window", "Navigator",
 console_error_panic_hook = { version = "0.1", optional = true }
 js-sys = { version = "0.3", optional = true }
 getrandom = { version = "0.2", features = ["js"] }
+futures = { version = "0.3", optional = true }
 
 [features]
 default = []
 linalg = ["ndarray-linalg"]
 gpu = ["wgpu", "bytemuck", "pollster"]
-gpu-web = ["gpu", "wasm-bindgen", "wasm-bindgen-futures", "web-sys", "console_error_panic_hook", "js-sys"]
+gpu-web = ["gpu", "wasm-bindgen", "wasm-bindgen-futures", "web-sys", "console_error_panic_hook", "js-sys", "futures"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]
