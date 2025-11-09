@@ -10,10 +10,10 @@ fn main() {
     let a = array![1.0, 2.0, 3.0, 4.0, 5.0];
     println!("   Array a: {:?}", a);
 
-    let b = zeros::<f64>(vec![3, 3].into());
+    let b = zeros::<f64>(IxDyn(&[3, 3]));
     println!("   Zeros (3x3):\n{:?}", b);
 
-    let c = ones::<f64>(vec![2, 4].into());
+    let c = ones::<f64>(IxDyn(&[2, 4]));
     println!("   Ones (2x4):\n{:?}", c);
 
     let d = linspace(0.0, 10.0, 11).unwrap();

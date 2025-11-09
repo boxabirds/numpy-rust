@@ -32,30 +32,26 @@ fn main() {
     println!("   Inverse:\n{:?}", inv);
     println!("   Product (should be identity):\n{:?}", matrix.dot(&inv));
 
-    // Eigenvalues and eigenvectors
-    println!("\n4. Eigenvalues and Eigenvectors:");
-    let symmetric = array![[2.0, 1.0], [1.0, 2.0]];
-    let (eigenvalues, eigenvectors) = linalg::eig(&symmetric).unwrap();
-    println!("   Symmetric matrix:\n{:?}", symmetric);
-    println!("   Eigenvalues: {:?}", eigenvalues);
-    println!("   Eigenvectors:\n{:?}", eigenvectors);
+    // Determinant
+    println!("\n4. Determinant:");
+    let det_matrix = array![[1.0, 2.0], [3.0, 4.0]];
+    let det_val = linalg::det(&det_matrix).unwrap();
+    println!("   Matrix:\n{:?}", det_matrix);
+    println!("   Determinant: {}", det_val);
 
-    // SVD decomposition
-    println!("\n5. Singular Value Decomposition:");
-    let m = array![[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]];
-    let (u, s, vt) = linalg::svd(&m).unwrap();
-    println!("   Matrix M:\n{:?}", m);
-    println!("   U:\n{:?}", u);
-    println!("   Singular values: {:?}", s);
-    println!("   V^T:\n{:?}", vt);
+    // Transpose
+    println!("\n5. Matrix Transpose:");
+    let orig = array![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]];
+    let transposed = linalg::transpose(&orig);
+    println!("   Original:\n{:?}", orig);
+    println!("   Transposed:\n{:?}", transposed);
 
-    // QR decomposition
-    println!("\n6. QR Decomposition:");
-    let matrix_qr = array![[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]];
-    let (q, r) = linalg::qr(&matrix_qr).unwrap();
-    println!("   Matrix:\n{:?}", matrix_qr);
-    println!("   Q (orthogonal):\n{:?}", q);
-    println!("   R (upper triangular):\n{:?}", r);
+    // Trace
+    println!("\n6. Matrix Trace:");
+    let trace_matrix = array![[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]];
+    let trace_val = linalg::trace(&trace_matrix);
+    println!("   Matrix:\n{:?}", trace_matrix);
+    println!("   Trace (sum of diagonal): {}", trace_val);
 
     println!("\n=== Demo Complete ===");
 }

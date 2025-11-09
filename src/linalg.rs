@@ -3,7 +3,7 @@
 //! This module provides basic linear algebra functions.
 
 use ndarray::{Array1, Array2, ArrayBase, Data, Ix2};
-use num_traits::{Float, Num, One, Zero};
+use num_traits::{Float, Num, Zero};
 use crate::error::{NumpyError, Result};
 
 /// Matrix multiplication
@@ -14,7 +14,7 @@ pub fn matmul<S1, S2>(
 where
     S1: Data,
     S2: Data<Elem = S1::Elem>,
-    S1::Elem: Num + Copy,
+    S1::Elem: Num + Copy + 'static,
 {
     if a.ncols() != b.nrows() {
         return Err(NumpyError::ShapeMismatch {
@@ -30,7 +30,7 @@ pub fn dot<S1, S2>(a: &ArrayBase<S1, Ix2>, b: &ArrayBase<S2, Ix2>) -> Result<Arr
 where
     S1: Data,
     S2: Data<Elem = S1::Elem>,
-    S1::Elem: Num + Copy,
+    S1::Elem: Num + Copy + 'static,
 {
     matmul(a, b)
 }
@@ -68,10 +68,10 @@ where
 pub fn trace<S>(a: &ArrayBase<S, Ix2>) -> S::Elem
 where
     S: Data,
-    S::Elem: Num + Copy,
+    S::Elem: Num + Copy + Zero,
 {
     let n = a.nrows().min(a.ncols());
-    (0..n).map(|i| a[[i, i]]).fold(S::Elem::zero(), |acc, x| acc + x)
+    (0..n).map(|i| a[[i, i]]).fold(Zero::zero(), |acc, x| acc + x)
 }
 
 /// Compute the transpose of a matrix
@@ -122,7 +122,7 @@ where
 }
 
 /// Solve 2x2 linear system Ax = b
-pub fn solve_2x2<T: Float>(a: &Array2<T>, b: &Array1<T>) -> Result<Array1<T>> {
+pub fn solve_2x2<T: Float + 'static>(a: &Array2<T>, b: &Array1<T>) -> Result<Array1<T>> {
     let a_inv = inv_2x2(a)?;
     Ok(a_inv.dot(b))
 }
@@ -135,7 +135,7 @@ pub fn solve<S1, S2>(
 where
     S1: Data,
     S2: Data<Elem = S1::Elem>,
-    S1::Elem: Float,
+    S1::Elem: Float + 'static,
 {
     if a.shape() == [2, 2] && b.len() == 2 {
         solve_2x2(&a.to_owned(), &b.to_owned())
