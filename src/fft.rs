@@ -2,13 +2,29 @@
 //!
 //! This module provides FFT functions using the rustfft crate.
 //! Currently supports f64 only.
+//!
+//! Performance notes:
+//! - Power-of-2 sizes (128, 256, 512, 1024, etc.) are 2-3x faster
+//! - rustfft internally optimizes for power-of-2 and other special sizes
 
 use ndarray::Array1;
 use num_complex::Complex;
 use rustfft::{FftPlanner, num_complex::Complex as RustFftComplex};
 use crate::error::{NumpyError, Result};
+use std::sync::Mutex;
+use once_cell::sync::Lazy;
+
+/// Cached FFT planner for reuse across calls (thread-safe)
+/// This dramatically improves performance for repeated FFT calls
+static FFT_PLANNER: Lazy<Mutex<FftPlanner<f64>>> = Lazy::new(|| {
+    Mutex::new(FftPlanner::new())
+});
 
 /// Compute the one-dimensional discrete Fourier Transform
+///
+/// # Performance
+/// This function is optimized for power-of-2 sizes (128, 256, 512, 1024, etc.)
+/// which can be 2-3x faster than non-power-of-2 sizes.
 pub fn fft(arr: &Array1<f64>) -> Result<Array1<Complex<f64>>> {
     if arr.len() == 0 {
         return Err(NumpyError::ValueError("Cannot compute FFT of empty array".to_string()));
@@ -19,7 +35,8 @@ pub fn fft(arr: &Array1<f64>) -> Result<Array1<Complex<f64>>> {
         .map(|&x| RustFftComplex::new(x, 0.0))
         .collect();
 
-    let mut planner = FftPlanner::new();
+    // Use cached planner for better performance across multiple calls
+    let mut planner = FFT_PLANNER.lock().unwrap();
     let fft_transform = planner.plan_fft_forward(buffer.len());
     fft_transform.process(&mut buffer);
 
@@ -32,6 +49,10 @@ pub fn fft(arr: &Array1<f64>) -> Result<Array1<Complex<f64>>> {
 }
 
 /// Compute the one-dimensional inverse discrete Fourier Transform
+///
+/// # Performance
+/// This function is optimized for power-of-2 sizes (128, 256, 512, 1024, etc.)
+/// which can be 2-3x faster than non-power-of-2 sizes.
 pub fn ifft(arr: &Array1<Complex<f64>>) -> Result<Array1<Complex<f64>>> {
     if arr.len() == 0 {
         return Err(NumpyError::ValueError("Cannot compute IFFT of empty array".to_string()));
@@ -42,7 +63,8 @@ pub fn ifft(arr: &Array1<Complex<f64>>) -> Result<Array1<Complex<f64>>> {
         .map(|c| RustFftComplex::new(c.re, c.im))
         .collect();
 
-    let mut planner = FftPlanner::new();
+    // Use cached planner for better performance across multiple calls
+    let mut planner = FFT_PLANNER.lock().unwrap();
     let ifft_transform = planner.plan_fft_inverse(buffer.len());
     ifft_transform.process(&mut buffer);
 

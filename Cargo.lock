@@ -533,6 +533,7 @@ dependencies = [
  "num-complex",
  "num-traits",
  "numpy",
+ "once_cell",
  "pyo3",
  "rand",
  "rand_distr",
