@@ -52,7 +52,15 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
 
 async function initWasm() {
   try {
-    postMessage({ type: 'progress', message: 'Loading WASM module...' } as WorkerResponse);
+    console.log('[Worker] Initializing in Web Worker context');
+    console.log('[Worker] navigator.gpu available:', !!navigator.gpu);
+
+    postMessage({ type: 'progress', message: 'Loading WASM module in worker...' } as WorkerResponse);
+
+    // Check if we're actually in a worker
+    if (typeof WorkerGlobalScope === 'undefined') {
+      throw new Error('Not running in a Worker context!');
+    }
 
     // Load WASM module
     const module = await import('../../pkg/numpy_rust');
@@ -62,17 +70,29 @@ async function initWasm() {
     // Initialize WASM
     await module.default();
 
-    postMessage({ type: 'progress', message: 'Checking WebGPU support...' } as WorkerResponse);
+    postMessage({ type: 'progress', message: 'Checking WebGPU support in worker...' } as WorkerResponse);
 
-    // Try to initialize GPU
-    try {
-      await module.init_gpu();
-      gpuAvailable = true;
-      postMessage({ type: 'progress', message: 'GPU initialized successfully!' } as WorkerResponse);
-    } catch (err) {
+    // Check WebGPU availability
+    if (!navigator.gpu) {
+      console.warn('[Worker] WebGPU not available in worker context');
+      postMessage({
+        type: 'progress',
+        message: 'WebGPU not available in workers - this browser limitation causes UI blocking'
+      } as WorkerResponse);
       gpuAvailable = false;
-      console.warn('GPU initialization failed, will use CPU only:', err);
-      postMessage({ type: 'progress', message: 'GPU not available, using CPU only' } as WorkerResponse);
+    } else {
+      // Try to initialize GPU
+      try {
+        console.log('[Worker] Attempting GPU initialization...');
+        await module.init_gpu();
+        gpuAvailable = true;
+        console.log('[Worker] GPU initialized successfully!');
+        postMessage({ type: 'progress', message: 'GPU initialized in worker!' } as WorkerResponse);
+      } catch (err) {
+        gpuAvailable = false;
+        console.warn('[Worker] GPU initialization failed:', err);
+        postMessage({ type: 'progress', message: `GPU init failed: ${err}` } as WorkerResponse);
+      }
     }
 
     wasmModule = module;
@@ -82,6 +102,7 @@ async function initWasm() {
       gpuAvailable,
     } as WorkerResponse);
   } catch (error) {
+    console.error('[Worker] Initialization error:', error);
     postMessage({
       type: 'init_error',
       error: String(error),
@@ -114,32 +135,55 @@ async function runMatmulBenchmark(size: number) {
   const a = wasmModule.generate_random_matrix(size, size);
   const b = wasmModule.generate_random_matrix(size, size);
 
+  // Yield to prevent blocking
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
   // Run CPU benchmark
   postMessage({ type: 'progress', message: `Running CPU matrix multiplication (${size}×${size})...` } as WorkerResponse);
+
+  // Yield before heavy computation
+  await new Promise((resolve) => setTimeout(resolve, 10));
+
   const cpuStart = performance.now();
   const cpuResult = wasmModule.matmul_cpu(a, b, size);
   const cpuTime = performance.now() - cpuStart;
 
-  // Small delay to ensure GPU is ready
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  // Yield after CPU work
+  await new Promise((resolve) => setTimeout(resolve, 50));
 
   // Run GPU benchmark
   postMessage({ type: 'progress', message: `Running GPU matrix multiplication (${size}×${size})...` } as WorkerResponse);
+
+  // Yield before GPU work
+  await new Promise((resolve) => setTimeout(resolve, 10));
+
   const gpuStart = performance.now();
   const gpuResult = wasmModule.matmul_gpu(a, b, size);
   const gpuTime = performance.now() - gpuStart;
+
+  // Yield after GPU work
+  await new Promise((resolve) => setTimeout(resolve, 50));
 
   // Verify correctness (check subset)
   postMessage({ type: 'progress', message: 'Verifying results...' } as WorkerResponse);
   let correct = true;
   const checkCount = Math.min(100, size * size);
-  for (let i = 0; i < checkCount; i++) {
-    const diff = Math.abs(cpuResult[i] - gpuResult[i]);
-    if (diff > 0.01) {
-      correct = false;
-      console.warn(`Mismatch at index ${i}: CPU=${cpuResult[i]}, GPU=${gpuResult[i]}`);
-      break;
+
+  // Verify in chunks to avoid blocking
+  const chunkSize = 10;
+  for (let i = 0; i < checkCount; i += chunkSize) {
+    for (let j = 0; j < chunkSize && i + j < checkCount; j++) {
+      const idx = i + j;
+      const diff = Math.abs(cpuResult[idx] - gpuResult[idx]);
+      if (diff > 0.01) {
+        correct = false;
+        console.warn(`Mismatch at index ${idx}: CPU=${cpuResult[idx]}, GPU=${gpuResult[idx]}`);
+        break;
+      }
     }
+    if (!correct || i + chunkSize >= checkCount) break;
+    // Yield every chunk
+    await new Promise((resolve) => setTimeout(resolve, 0));
   }
 
   const speedup = cpuTime / gpuTime;
