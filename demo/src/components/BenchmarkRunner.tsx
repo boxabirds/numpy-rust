@@ -28,18 +28,30 @@ export default function BenchmarkRunner({ worker, onResults }: Props) {
   const sizes = operation === 'matmul' ? MATRIX_SIZES : ARRAY_SIZES;
 
   useEffect(() => {
-    if (!worker) return;
+    if (!worker) {
+      console.log('[BenchmarkRunner] No worker available');
+      return;
+    }
+
+    console.log('[BenchmarkRunner] Setting up message handler');
 
     // Listen for messages from worker
     const handleMessage = (event: MessageEvent<WorkerResponse>) => {
       const response = event.data;
+      console.log('[BenchmarkRunner] Received from worker:', response.type, response);
+
+      // Log main thread responsiveness
+      const now = performance.now();
+      console.log('[BenchmarkRunner] Main thread timestamp:', now, 'ms');
 
       switch (response.type) {
         case 'progress':
+          console.log('[BenchmarkRunner] Progress:', response.message);
           setProgress(response.message);
           break;
 
         case 'result':
+          console.log('[BenchmarkRunner] Benchmark complete:', response);
           onResults({
             matrixSize: response.size,
             cpuTime: response.cpuTime,
@@ -53,7 +65,7 @@ export default function BenchmarkRunner({ worker, onResults }: Props) {
           break;
 
         case 'error':
-          console.error('Worker error:', response.error);
+          console.error('[BenchmarkRunner] Worker error:', response.error);
           setProgress(`Error: ${response.error}`);
           setRunning(false);
           break;
@@ -63,25 +75,33 @@ export default function BenchmarkRunner({ worker, onResults }: Props) {
     worker.addEventListener('message', handleMessage);
 
     return () => {
+      console.log('[BenchmarkRunner] Cleaning up message handler');
       worker.removeEventListener('message', handleMessage);
     };
   }, [worker, onResults]);
 
   function runBenchmark() {
+    console.log('[BenchmarkRunner] runBenchmark called');
+    console.log('[BenchmarkRunner] Main thread before benchmark:', performance.now());
+
     if (!worker) {
+      console.error('[BenchmarkRunner] Worker not initialized!');
       setProgress('Worker not initialized');
       return;
     }
 
+    console.log('[BenchmarkRunner] Starting benchmark:', { operation, size });
     setRunning(true);
     setProgress('Starting benchmark...');
 
     // Send benchmark request to worker
+    console.log('[BenchmarkRunner] Posting message to worker...');
     worker.postMessage({
       type: 'benchmark',
       operation,
       size,
     } as WorkerMessage);
+    console.log('[BenchmarkRunner] Message posted, main thread should be free');
   }
 
   return (

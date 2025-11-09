@@ -15,12 +15,17 @@ export default function App() {
   const [results, setResults] = useState<BenchmarkResult[]>([]);
 
   useEffect(() => {
+    console.log('[Main] Starting worker initialization...');
+
     // Check WebGPU support
     if (!navigator.gpu) {
+      console.error('[Main] navigator.gpu not available');
       setError('WebGPU is not supported in this browser. Please use Chrome 113+ or Edge 113+.');
       setLoading(false);
       return;
     }
+
+    console.log('[Main] WebGPU available, creating worker...');
 
     // Create Web Worker
     const benchmarkWorker = new Worker(
@@ -28,37 +33,47 @@ export default function App() {
       { type: 'module' }
     );
 
+    console.log('[Main] Worker created, setting up message handler...');
+
     // Listen for messages from worker
     benchmarkWorker.addEventListener('message', (event: MessageEvent<WorkerResponse>) => {
       const response = event.data;
+      console.log('[Main] Received message from worker:', response.type, response);
 
       switch (response.type) {
         case 'init_success':
+          console.log('[Main] Worker initialized successfully, GPU available:', response.gpuAvailable);
           setGpuAvailable(response.gpuAvailable);
           setLoading(false);
           setWorker(benchmarkWorker);
           break;
 
         case 'init_error':
+          console.error('[Main] Worker initialization error:', response.error);
           setError(`Worker initialization failed: ${response.error}`);
           setLoading(false);
           break;
 
         case 'progress':
+          console.log('[Main] Progress update:', response.message);
           setInitProgress(response.message);
           break;
 
         case 'error':
+          console.error('[Main] Worker error during operation:', response.error);
           // Errors during benchmark are handled by BenchmarkRunner
           break;
       }
     });
+
+    console.log('[Main] Sending init message to worker...');
 
     // Initialize the worker
     benchmarkWorker.postMessage({ type: 'init' } as WorkerMessage);
 
     // Cleanup on unmount
     return () => {
+      console.log('[Main] Cleaning up worker...');
       benchmarkWorker.terminate();
     };
   }, []);

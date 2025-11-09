@@ -129,11 +129,14 @@ async function runBenchmark(operation: 'matmul' | 'sin' | 'exp', size: number) {
 }
 
 async function runMatmulBenchmark(size: number) {
+  console.log('[Worker] runMatmulBenchmark START, size:', size, 'time:', performance.now());
   postMessage({ type: 'progress', message: 'Generating test matrices...' } as WorkerResponse);
 
   // Generate random matrices
+  console.log('[Worker] Generating matrices at:', performance.now());
   const a = wasmModule.generate_random_matrix(size, size);
   const b = wasmModule.generate_random_matrix(size, size);
+  console.log('[Worker] Matrices generated at:', performance.now());
 
   // Yield to prevent blocking
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -144,9 +147,11 @@ async function runMatmulBenchmark(size: number) {
   // Yield before heavy computation
   await new Promise((resolve) => setTimeout(resolve, 10));
 
+  console.log('[Worker] CPU matmul START at:', performance.now());
   const cpuStart = performance.now();
   const cpuResult = wasmModule.matmul_cpu(a, b, size);
   const cpuTime = performance.now() - cpuStart;
+  console.log('[Worker] CPU matmul END at:', performance.now(), 'took:', cpuTime, 'ms');
 
   // Yield after CPU work
   await new Promise((resolve) => setTimeout(resolve, 50));
@@ -157,14 +162,17 @@ async function runMatmulBenchmark(size: number) {
   // Yield before GPU work
   await new Promise((resolve) => setTimeout(resolve, 10));
 
+  console.log('[Worker] GPU matmul START at:', performance.now());
   const gpuStart = performance.now();
   const gpuResult = wasmModule.matmul_gpu(a, b, size);
   const gpuTime = performance.now() - gpuStart;
+  console.log('[Worker] GPU matmul END at:', performance.now(), 'took:', gpuTime, 'ms');
 
   // Yield after GPU work
   await new Promise((resolve) => setTimeout(resolve, 50));
 
   // Verify correctness (check subset)
+  console.log('[Worker] Verifying results at:', performance.now());
   postMessage({ type: 'progress', message: 'Verifying results...' } as WorkerResponse);
   let correct = true;
   const checkCount = Math.min(100, size * size);
@@ -177,7 +185,7 @@ async function runMatmulBenchmark(size: number) {
       const diff = Math.abs(cpuResult[idx] - gpuResult[idx]);
       if (diff > 0.01) {
         correct = false;
-        console.warn(`Mismatch at index ${idx}: CPU=${cpuResult[idx]}, GPU=${gpuResult[idx]}`);
+        console.warn('[Worker] Mismatch at index', idx, 'CPU:', cpuResult[idx], 'GPU:', gpuResult[idx]);
         break;
       }
     }
@@ -187,6 +195,7 @@ async function runMatmulBenchmark(size: number) {
   }
 
   const speedup = cpuTime / gpuTime;
+  console.log('[Worker] runMatmulBenchmark COMPLETE at:', performance.now(), 'speedup:', speedup);
 
   postMessage({
     type: 'result',
