@@ -2,7 +2,7 @@
 
 use ndarray::{Array, ArrayBase, Data, Dimension};
 use wgpu::util::DeviceExt;
-use crate::gpu::context::GpuContext;
+use crate::gpu::context::{GpuContext, PipelineCache};
 use crate::gpu::kernels::ELEMENTWISE_SHADER;
 use crate::error::{NumpyError, Result};
 
@@ -78,120 +78,133 @@ where
         usage: wgpu::BufferUsages::UNIFORM,
     });
 
-    // Create shader module
-    let shader = ctx.device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("Element-wise Shader"),
-        source: wgpu::ShaderSource::Wgsl(ELEMENTWISE_SHADER.into()),
-    });
+    // Get or create cached pipeline
+    let result_buffers = ctx.with_pipeline(
+        "elementwise",
+        || {
+            // Create shader module (cached)
+            let shader = ctx.device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("Element-wise Shader"),
+                source: wgpu::ShaderSource::Wgsl(ELEMENTWISE_SHADER.into()),
+            });
 
-    // Create bind group layout
-    let bind_group_layout = ctx.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("Element-wise Bind Group Layout"),
-        entries: &[
-            // Input buffer
-            wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::COMPUTE,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Storage { read_only: true },
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            },
-            // Output buffer
-            wgpu::BindGroupLayoutEntry {
-                binding: 1,
-                visibility: wgpu::ShaderStages::COMPUTE,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Storage { read_only: false },
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            },
-            // Parameters
-            wgpu::BindGroupLayoutEntry {
-                binding: 2,
-                visibility: wgpu::ShaderStages::COMPUTE,
-                ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            },
-        ],
-    });
+            // Create bind group layout (cached)
+            let bind_group_layout = ctx.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Element-wise Bind Group Layout"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                ],
+            });
 
-    // Create bind group
-    let bind_group = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
-        label: Some("Element-wise Bind Group"),
-        layout: &bind_group_layout,
-        entries: &[
-            wgpu::BindGroupEntry {
-                binding: 0,
-                resource: input_buffer.as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: 1,
-                resource: output_buffer.as_entire_binding(),
-            },
-            wgpu::BindGroupEntry {
-                binding: 2,
-                resource: params_buffer.as_entire_binding(),
-            },
-        ],
-    });
+            // Create pipeline (cached)
+            let pipeline_layout = ctx.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Element-wise Pipeline Layout"),
+                bind_group_layouts: &[&bind_group_layout],
+                push_constant_ranges: &[],
+            });
 
-    // Create compute pipeline
-    let pipeline_layout = ctx.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        label: Some("Element-wise Pipeline Layout"),
-        bind_group_layouts: &[&bind_group_layout],
-        push_constant_ranges: &[],
-    });
+            let pipeline = ctx.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("Element-wise Pipeline"),
+                layout: Some(&pipeline_layout),
+                module: &shader,
+                entry_point: Some("elementwise_op"),
+                compilation_options: Default::default(),
+                cache: None,
+            });
 
-    let pipeline = ctx.device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-        label: Some("Element-wise Pipeline"),
-        layout: Some(&pipeline_layout),
-        module: &shader,
-        entry_point: Some("elementwise_op"),
-        compilation_options: Default::default(),
-        cache: None,
-    });
+            PipelineCache {
+                shader,
+                bind_group_layout,
+                pipeline,
+            }
+        },
+        |cached| {
+            // Create bind group using cached layout (per-call)
+            let bind_group = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Element-wise Bind Group"),
+                layout: &cached.bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: input_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: output_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: params_buffer.as_entire_binding(),
+                    },
+                ],
+            });
 
-    // Execute compute pass
-    let mut encoder = ctx.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-        label: Some("Element-wise Encoder"),
-    });
+            // Execute compute pass
+            let mut encoder = ctx.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Element-wise Encoder"),
+            });
 
-    {
-        let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-            label: Some("Element-wise Pass"),
-            timestamp_writes: None,
-        });
+            {
+                let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: Some("Element-wise Pass"),
+                    timestamp_writes: None,
+                });
 
-        compute_pass.set_pipeline(&pipeline);
-        compute_pass.set_bind_group(0, &bind_group, &[]);
+                compute_pass.set_pipeline(&cached.pipeline);
+                compute_pass.set_bind_group(0, &bind_group, &[]);
 
-        // Dispatch workgroups (256 threads per workgroup)
-        let workgroups = (size as u32 + 255) / 256;
-        compute_pass.dispatch_workgroups(workgroups, 1, 1);
-    }
+                // Dispatch workgroups (256 threads per workgroup)
+                let workgroups = (size as u32 + 255) / 256;
+                compute_pass.dispatch_workgroups(workgroups, 1, 1);
+            }
 
-    // Create staging buffer for readback
-    let staging_buffer = ctx.device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("Element-wise Staging Buffer"),
-        size: output_size,
-        usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
-        mapped_at_creation: false,
-    });
+            // Create staging buffer for readback
+            let staging_buffer = ctx.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Element-wise Staging Buffer"),
+                size: output_size,
+                usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
 
-    // Copy result to staging buffer
-    encoder.copy_buffer_to_buffer(&output_buffer, 0, &staging_buffer, 0, output_size);
-    ctx.queue.submit(Some(encoder.finish()));
+            // Copy result to staging buffer
+            encoder.copy_buffer_to_buffer(&output_buffer, 0, &staging_buffer, 0, output_size);
+            ctx.queue.submit(Some(encoder.finish()));
+
+            (staging_buffer, output_size)
+        },
+    );
 
     // Read back results
+    let (staging_buffer, output_size) = result_buffers;
     let buffer_slice = staging_buffer.slice(..);
 
     // Use oneshot channel for async-friendly buffer mapping
@@ -202,7 +215,7 @@ where
 
     // In wgpu 27+, polling is handled automatically for WebGPU
     #[cfg(not(target_arch = "wasm32"))]
-    ctx.device.poll(wgpu::MaintainResult::SubmissionQueueEmpty);
+    ctx.device.poll(wgpu::Maintain::Poll);
 
     // Await the future (works in both WASM and native)
     rx.await

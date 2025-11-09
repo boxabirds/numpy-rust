@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { AlertCircle, Zap } from 'lucide-react';
-import BenchmarkRunner, { BenchmarkResult } from './components/BenchmarkRunner';
-import ResultsDisplay from './components/ResultsDisplay';
+import BenchmarkSidebar from './components/BenchmarkSidebar';
+import BenchmarkControls from './components/BenchmarkControls';
+import BenchmarkHistory from './components/BenchmarkHistory';
 import GPUInfo from './components/GPUInfo';
+import type { BenchmarkResult } from './types/benchmark';
 import type { WorkerMessage, WorkerResponse } from './workers/benchmark.worker';
 import './styles/app.css';
 
@@ -13,6 +15,7 @@ export default function App() {
   const [gpuAvailable, setGpuAvailable] = useState(false);
   const [initProgress, setInitProgress] = useState('Initializing...');
   const [results, setResults] = useState<BenchmarkResult[]>([]);
+  const [selectedTestId, setSelectedTestId] = useState<string | null>('matmul');
 
   useEffect(() => {
     console.log('[Main] Starting worker initialization...');
@@ -82,6 +85,10 @@ export default function App() {
     setResults(prev => [...prev, result]);
   }
 
+  function clearResults() {
+    setResults([]);
+  }
+
   if (loading) {
     return (
       <div className="loading-screen">
@@ -115,47 +122,46 @@ export default function App() {
         <div className="header-content">
           <h1>
             <Zap className="logo" />
-            numpy-rust WebGPU Demo
+            numpy-rust WebGPU Benchmarks
           </h1>
           <p className="subtitle">
-            GPU-accelerated matrix operations in your browser
+            Comprehensive CPU vs GPU performance comparison
+            {!gpuAvailable && ' (Running in CPU-only mode)'}
           </p>
         </div>
         <GPUInfo gpuAvailable={gpuAvailable} />
       </header>
 
       <main className="app-main">
-        <section className="info-section">
-          <h2>Interactive GPU Benchmarks</h2>
-          <p>
-            Compare CPU vs GPU performance for matrix multiplication and element-wise operations.
-            Run benchmarks below to see the speedup achieved by GPU acceleration.
-            {!gpuAvailable && ' (Running in CPU-only mode)'}
-          </p>
-        </section>
+        <div className="benchmark-layout">
+          {/* Left sidebar - Test navigation */}
+          <aside className="sidebar-column">
+            <BenchmarkSidebar
+              selectedTestId={selectedTestId}
+              onSelectTest={setSelectedTestId}
+            />
+          </aside>
 
-        <section className="benchmark-section">
-          <BenchmarkRunner worker={worker} onResults={handleResults} />
-        </section>
+          {/* Right content - Controls and History */}
+          <div className="content-column">
+            {/* Top - Dimension controls and run button */}
+            <section className="controls-section">
+              <BenchmarkControls
+                worker={worker}
+                selectedTestId={selectedTestId}
+                onResults={handleResults}
+              />
+            </section>
 
-        <section className="results-section">
-          <ResultsDisplay results={results} />
-        </section>
-
-        <section className="features">
-          <div className="feature-card">
-            <h3>Matrix Multiplication</h3>
-            <p>GPU-accelerated matmul with 100-300x speedup for large matrices (≥512×512)</p>
+            {/* Bottom - Test run history */}
+            <section className="history-section">
+              <BenchmarkHistory
+                results={results}
+                onClear={clearResults}
+              />
+            </section>
           </div>
-          <div className="feature-card">
-            <h3>Element-wise Operations</h3>
-            <p>GPU sin, cos, exp, log with 50-200x speedup for arrays ≥100K elements</p>
-          </div>
-          <div className="feature-card">
-            <h3>Non-blocking Execution</h3>
-            <p>Benchmarks run in a Web Worker, keeping the UI responsive</p>
-          </div>
-        </section>
+        </div>
       </main>
 
       <footer className="app-footer">

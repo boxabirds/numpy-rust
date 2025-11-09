@@ -30,6 +30,7 @@ once_cell = "1.21"
 wgpu = { version = "27", optional = true }
 bytemuck = { version = "1.14", optional = true, features = ["derive"] }
 pollster = { version = "0.3", optional = true }
+futures = { version = "0.3", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = { version = "0.2", optional = true }
@@ -43,8 +44,8 @@ futures = { version = "0.3", optional = true }
 [features]
 default = []
 linalg = ["ndarray-linalg"]
-gpu = ["wgpu", "bytemuck", "pollster"]
-gpu-web = ["gpu", "wasm-bindgen", "wasm-bindgen-futures", "web-sys", "console_error_panic_hook", "js-sys", "futures"]
+gpu = ["wgpu", "bytemuck", "pollster", "futures"]
+gpu-web = ["gpu", "wasm-bindgen", "wasm-bindgen-futures", "web-sys", "console_error_panic_hook", "js-sys"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]

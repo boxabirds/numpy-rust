@@ -125,7 +125,7 @@ pub async fn read_buffer<T: bytemuck::Pod>(
 
     // In wgpu 27+, polling is handled automatically for WebGPU
     #[cfg(not(target_arch = "wasm32"))]
-    device.poll(wgpu::MaintainResult::SubmissionQueueEmpty);
+    device.poll(wgpu::Maintain::Poll);
 
     // Await the future (works in both WASM and native)
     rx.await
