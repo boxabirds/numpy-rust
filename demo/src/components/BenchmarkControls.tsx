@@ -9,9 +9,10 @@ interface Props {
   worker: Worker | null;
   selectedTestId: string | null;
   onResults: (results: BenchmarkResult) => void;
+  cpuTimeout: number;
 }
 
-export default function BenchmarkControls({ worker, selectedTestId, onResults }: Props) {
+export default function BenchmarkControls({ worker, selectedTestId, onResults, cpuTimeout }: Props) {
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState('');
   const [dimensions, setDimensions] = useState<Record<string, number>>({});
@@ -94,6 +95,7 @@ export default function BenchmarkControls({ worker, selectedTestId, onResults }:
       type: 'benchmark',
       operation: test.operation as any,
       size,
+      cpuTimeout: cpuTimeout > 0 ? cpuTimeout : undefined,
     } as WorkerMessage);
   }
 

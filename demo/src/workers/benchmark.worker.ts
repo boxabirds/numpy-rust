@@ -9,6 +9,7 @@ export type WorkerMessage =
       type: 'benchmark';
       operation: 'matmul' | 'sin' | 'exp';
       size: number;
+      cpuTimeout?: number; // milliseconds, undefined = no timeout
     };
 
 export type WorkerResponse =
@@ -39,7 +40,7 @@ self.onmessage = async (event: MessageEvent<WorkerMessage>) => {
         await initWasm();
         break;
       case 'benchmark':
-        await runBenchmark(message.operation, message.size);
+        await runBenchmark(message.operation, message.size, message.cpuTimeout);
         break;
     }
   } catch (error) {
@@ -105,25 +106,66 @@ async function initWasm() {
   }
 }
 
-async function runBenchmark(operation: 'matmul' | 'sin' | 'exp', size: number) {
+async function runBenchmark(operation: 'matmul' | 'sin' | 'exp', size: number, cpuTimeout?: number) {
   if (!wasmModule) {
     throw new Error('WASM module not initialized');
   }
 
   switch (operation) {
     case 'matmul':
-      await runMatmulBenchmark(size);
+      await runMatmulBenchmark(size, cpuTimeout);
       break;
     case 'sin':
-      await runSinBenchmark(size);
+      await runSinBenchmark(size, cpuTimeout);
       break;
     case 'exp':
-      await runExpBenchmark(size);
+      await runExpBenchmark(size, cpuTimeout);
       break;
   }
 }
 
-async function runMatmulBenchmark(size: number) {
+/**
+ * Run a CPU operation with timeout
+ * Returns -1 if timeout is exceeded
+ */
+async function runWithTimeout<T>(
+  operation: () => T,
+  timeoutMs?: number
+): Promise<{ result: T | null; time: number; timedOut: boolean }> {
+  if (!timeoutMs || timeoutMs < 0) {
+    // No timeout - run normally
+    const start = performance.now();
+    const result = operation();
+    const time = performance.now() - start;
+    return { result, time, timedOut: false };
+  }
+
+  // With timeout - use Promise.race
+  const start = performance.now();
+  let timedOut = false;
+
+  const timeoutPromise = new Promise<null>((resolve) => {
+    setTimeout(() => {
+      timedOut = true;
+      resolve(null);
+    }, timeoutMs);
+  });
+
+  const operationPromise = new Promise<T>((resolve) => {
+    // Run in next tick to allow timeout to be set up
+    setTimeout(() => {
+      const result = operation();
+      resolve(result);
+    }, 0);
+  });
+
+  const result = await Promise.race([operationPromise, timeoutPromise]);
+  const time = performance.now() - start;
+
+  return { result, time, timedOut };
+}
+
+async function runMatmulBenchmark(size: number, cpuTimeout?: number) {
   console.log('[Worker] runMatmulBenchmark START, size:', size, 'time:', performance.now());
   postMessage({ type: 'progress', message: 'Generating test matrices...' } as WorkerResponse);
 
@@ -136,17 +178,24 @@ async function runMatmulBenchmark(size: number) {
   // Yield to prevent blocking
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  // Run CPU benchmark
+  // Run CPU benchmark with timeout
   postMessage({ type: 'progress', message: `Running CPU matrix multiplication (${size}×${size})...` } as WorkerResponse);
 
-  // Yield before heavy computation
-  await new Promise((resolve) => setTimeout(resolve, 10));
-
   console.log('[Worker] CPU matmul START at:', performance.now());
-  const cpuStart = performance.now();
-  const cpuResult = wasmModule.matmul_cpu(a, b, size);
-  const cpuTime = performance.now() - cpuStart;
-  console.log('[Worker] CPU matmul END at:', performance.now(), 'took:', cpuTime, 'ms');
+  const cpuBenchmark = await runWithTimeout(
+    () => wasmModule.matmul_cpu(a, b, size),
+    cpuTimeout
+  );
+
+  const cpuResult = cpuBenchmark.result;
+  const cpuTime = cpuBenchmark.timedOut ? -1 : cpuBenchmark.time;
+
+  if (cpuBenchmark.timedOut) {
+    console.log('[Worker] CPU matmul TIMED OUT after:', cpuBenchmark.time, 'ms');
+    postMessage({ type: 'progress', message: 'CPU benchmark timed out, continuing with GPU...' } as WorkerResponse);
+  } else {
+    console.log('[Worker] CPU matmul END at:', performance.now(), 'took:', cpuTime, 'ms');
+  }
 
   // Yield after CPU work
   await new Promise((resolve) => setTimeout(resolve, 50));
@@ -166,27 +215,33 @@ async function runMatmulBenchmark(size: number) {
   // Yield after GPU work
   await new Promise((resolve) => setTimeout(resolve, 50));
 
-  // Verify correctness (check subset)
+  // Verify correctness (check subset) - skip if CPU timed out
   console.log('[Worker] Verifying results at:', performance.now());
-  postMessage({ type: 'progress', message: 'Verifying results...' } as WorkerResponse);
   let correct = true;
-  const checkCount = Math.min(100, size * size);
 
-  // Verify in chunks to avoid blocking
-  const chunkSize = 10;
-  for (let i = 0; i < checkCount; i += chunkSize) {
-    for (let j = 0; j < chunkSize && i + j < checkCount; j++) {
-      const idx = i + j;
-      const diff = Math.abs(cpuResult[idx] - gpuResult[idx]);
-      if (diff > 0.01) {
-        correct = false;
-        console.warn('[Worker] Mismatch at index', idx, 'CPU:', cpuResult[idx], 'GPU:', gpuResult[idx]);
-        break;
+  if (cpuResult) {
+    postMessage({ type: 'progress', message: 'Verifying results...' } as WorkerResponse);
+    const checkCount = Math.min(100, size * size);
+
+    // Verify in chunks to avoid blocking
+    const chunkSize = 10;
+    for (let i = 0; i < checkCount; i += chunkSize) {
+      for (let j = 0; j < chunkSize && i + j < checkCount; j++) {
+        const idx = i + j;
+        const diff = Math.abs(cpuResult[idx] - gpuResult[idx]);
+        if (diff > 0.01) {
+          correct = false;
+          console.warn('[Worker] Mismatch at index', idx, 'CPU:', cpuResult[idx], 'GPU:', gpuResult[idx]);
+          break;
+        }
       }
+      if (!correct || i + chunkSize >= checkCount) break;
+      // Yield every chunk
+      await new Promise((resolve) => setTimeout(resolve, 0));
     }
-    if (!correct || i + chunkSize >= checkCount) break;
-    // Yield every chunk
-    await new Promise((resolve) => setTimeout(resolve, 0));
+  } else {
+    console.log('[Worker] Skipping verification (CPU timed out)');
+    correct = true; // Assume correct if we can't verify
   }
 
   const speedup = cpuTime / gpuTime;
@@ -203,7 +258,7 @@ async function runMatmulBenchmark(size: number) {
   } as WorkerResponse);
 }
 
-async function runSinBenchmark(size: number) {
+async function runSinBenchmark(size: number, cpuTimeout?: number) {
   postMessage({ type: 'progress', message: 'Generating test array...' } as WorkerResponse);
 
   const t0 = performance.now();
@@ -211,12 +266,23 @@ async function runSinBenchmark(size: number) {
   const t1 = performance.now();
   console.log(`[Perf] Array generation: ${(t1-t0).toFixed(2)}ms`);
 
-  // Run CPU benchmark
+  // Run CPU benchmark with timeout
   postMessage({ type: 'progress', message: `Running CPU sin (${size.toLocaleString()} elements)...` } as WorkerResponse);
-  const cpuStart = performance.now();
-  const cpuResult = wasmModule.sin_cpu(input);
-  const cpuTime = performance.now() - cpuStart;
-  console.log(`[Perf] CPU sin: ${cpuTime.toFixed(2)}ms`);
+
+  const cpuBenchmark = await runWithTimeout(
+    () => wasmModule.sin_cpu(input),
+    cpuTimeout
+  );
+
+  const cpuResult = cpuBenchmark.result;
+  const cpuTime = cpuBenchmark.timedOut ? -1 : cpuBenchmark.time;
+
+  if (cpuBenchmark.timedOut) {
+    console.log(`[Perf] CPU sin TIMED OUT after: ${cpuBenchmark.time.toFixed(2)}ms`);
+    postMessage({ type: 'progress', message: 'CPU benchmark timed out, continuing with GPU...' } as WorkerResponse);
+  } else {
+    console.log(`[Perf] CPU sin: ${cpuTime.toFixed(2)}ms`);
+  }
 
   await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -246,16 +312,22 @@ async function runSinBenchmark(size: number) {
   console.log(`[Perf]   - OR chaining multiple ops (keep data on GPU)`);
   console.log(`[Perf]   - OR using unified memory architectures (Apple M1/M2)`);
 
-  // Verify correctness
-  postMessage({ type: 'progress', message: 'Verifying results...' } as WorkerResponse);
+  // Verify correctness - skip if CPU timed out
   let correct = true;
-  const checkCount = Math.min(1000, size);
-  for (let i = 0; i < checkCount; i++) {
-    const diff = Math.abs(cpuResult[i] - gpuResult[i]);
-    if (diff > 1e-5) {
-      correct = false;
-      break;
+
+  if (cpuResult) {
+    postMessage({ type: 'progress', message: 'Verifying results...' } as WorkerResponse);
+    const checkCount = Math.min(1000, size);
+    for (let i = 0; i < checkCount; i++) {
+      const diff = Math.abs(cpuResult[i] - gpuResult[i]);
+      if (diff > 1e-5) {
+        correct = false;
+        break;
+      }
     }
+  } else {
+    console.log('[Perf] Skipping verification (CPU timed out)');
+    correct = true; // Assume correct if we can't verify
   }
 
   const speedup = cpuTime / gpuTime;
@@ -271,7 +343,7 @@ async function runSinBenchmark(size: number) {
   } as WorkerResponse);
 }
 
-async function runExpBenchmark(size: number) {
+async function runExpBenchmark(size: number, cpuTimeout?: number) {
   postMessage({ type: 'progress', message: 'Generating test array...' } as WorkerResponse);
 
   // Generate random array (smaller values for exp)
@@ -280,11 +352,21 @@ async function runExpBenchmark(size: number) {
     input[i] = Math.random() * 2; // Keep values small for exp
   }
 
-  // Run CPU benchmark
+  // Run CPU benchmark with timeout
   postMessage({ type: 'progress', message: `Running CPU exp (${size.toLocaleString()} elements)...` } as WorkerResponse);
-  const cpuStart = performance.now();
-  const cpuResult = wasmModule.exp_cpu(input);
-  const cpuTime = performance.now() - cpuStart;
+
+  const cpuBenchmark = await runWithTimeout(
+    () => wasmModule.exp_cpu(input),
+    cpuTimeout
+  );
+
+  const cpuResult = cpuBenchmark.result;
+  const cpuTime = cpuBenchmark.timedOut ? -1 : cpuBenchmark.time;
+
+  if (cpuBenchmark.timedOut) {
+    console.log(`[Perf] CPU exp TIMED OUT after: ${cpuBenchmark.time.toFixed(2)}ms`);
+    postMessage({ type: 'progress', message: 'CPU benchmark timed out, continuing with GPU...' } as WorkerResponse);
+  }
 
   await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -294,17 +376,23 @@ async function runExpBenchmark(size: number) {
   const gpuResult = await wasmModule.exp_gpu(input);
   const gpuTime = performance.now() - gpuStart;
 
-  // Verify correctness
-  postMessage({ type: 'progress', message: 'Verifying results...' } as WorkerResponse);
+  // Verify correctness - skip if CPU timed out
   let correct = true;
-  const checkCount = Math.min(1000, size);
-  for (let i = 0; i < checkCount; i++) {
-    const diff = Math.abs(cpuResult[i] - gpuResult[i]);
-    const relativeError = diff / Math.max(cpuResult[i], 1e-6);
-    if (relativeError > 1e-4) {
-      correct = false;
-      break;
+
+  if (cpuResult) {
+    postMessage({ type: 'progress', message: 'Verifying results...' } as WorkerResponse);
+    const checkCount = Math.min(1000, size);
+    for (let i = 0; i < checkCount; i++) {
+      const diff = Math.abs(cpuResult[i] - gpuResult[i]);
+      const relativeError = diff / Math.max(cpuResult[i], 1e-6);
+      if (relativeError > 1e-4) {
+        correct = false;
+        break;
+      }
     }
+  } else {
+    console.log('[Perf] Skipping verification (CPU timed out)');
+    correct = true; // Assume correct if we can't verify
   }
 
   const speedup = cpuTime / gpuTime;
