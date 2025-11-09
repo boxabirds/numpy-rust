@@ -2,5 +2,5 @@
 //!
 //! Contains WGSL shader code for various GPU operations.
 
-// Matrix multiplication shader will be added here
-// pub const MATMUL_SHADER: &str = include_str!("matmul.wgsl");
+/// Tiled matrix multiplication shader (16×16 workgroups)
+pub const MATMUL_SHADER: &str = include_str!("matmul.wgsl");
