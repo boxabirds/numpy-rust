@@ -16,6 +16,7 @@ export default function App() {
   const [initProgress, setInitProgress] = useState('Initializing...');
   const [results, setResults] = useState<BenchmarkResult[]>([]);
   const [selectedTestId, setSelectedTestId] = useState<string | null>('matmul');
+  const [cpuTimeout, setCpuTimeout] = useState<number>(5000); // 5 seconds default
 
   useEffect(() => {
     console.log('[Main] Starting worker initialization...');
@@ -129,7 +130,25 @@ export default function App() {
             {!gpuAvailable && ' (Running in CPU-only mode)'}
           </p>
         </div>
-        <GPUInfo gpuAvailable={gpuAvailable} />
+        <div className="header-controls">
+          <div className="cpu-timeout-control">
+            <label htmlFor="cpu-timeout">CPU Timeout:</label>
+            <select
+              id="cpu-timeout"
+              value={cpuTimeout}
+              onChange={(e) => setCpuTimeout(Number(e.target.value))}
+            >
+              <option value={1000}>1 sec</option>
+              <option value={2000}>2 sec</option>
+              <option value={5000}>5 sec</option>
+              <option value={10000}>10 sec</option>
+              <option value={30000}>30 sec</option>
+              <option value={60000}>60 sec</option>
+              <option value={-1}>No limit</option>
+            </select>
+          </div>
+          <GPUInfo gpuAvailable={gpuAvailable} />
+        </div>
       </header>
 
       <main className="app-main">
@@ -150,6 +169,7 @@ export default function App() {
                 worker={worker}
                 selectedTestId={selectedTestId}
                 onResults={handleResults}
+                cpuTimeout={cpuTimeout}
               />
             </section>
 

@@ -78,9 +78,19 @@ impl GpuContext {
 
         let adapter_info = adapter.get_info();
 
-        // For WebGPU, use downlevel defaults for maximum compatibility
+        // Query adapter limits to request maximum buffer sizes
+        let adapter_limits = adapter.limits();
+
+        // For WebGPU, start with downlevel defaults but request higher buffer sizes
         let limits = if cfg!(target_arch = "wasm32") {
-            wgpu::Limits::downlevel_defaults()
+            let mut limits = wgpu::Limits::downlevel_defaults();
+
+            // Request the maximum buffer size supported by the adapter (up to 4GB)
+            // This is needed for large benchmarks (100M elements = 400MB)
+            limits.max_buffer_size = adapter_limits.max_buffer_size;
+            limits.max_storage_buffer_binding_size = adapter_limits.max_storage_buffer_binding_size;
+
+            limits
         } else {
             wgpu::Limits::default()
         };

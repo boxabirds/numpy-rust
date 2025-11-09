@@ -57,9 +57,9 @@ function generateCSV(results: BenchmarkResult[]): string {
       escapeCSV(result.operation),
       new Date(result.timestamp).toISOString(),
       escapeCSV(dimensionsStr),
-      result.cpuTime.toFixed(2),
+      result.cpuTime === -1 ? 'timeout' : result.cpuTime.toFixed(2),
       result.gpuTime.toFixed(2),
-      result.speedup.toFixed(2),
+      !isFinite(result.speedup) || result.speedup < 0 ? '-' : result.speedup.toFixed(2),
       result.correct ? 'Yes' : 'No',
     ];
   });
@@ -98,6 +98,11 @@ function downloadCSV(csv: string, filename: string) {
  * Format speedup with color coding
  */
 function formatSpeedup(speedup: number): { text: string; className: string } {
+  // Handle timeout case (cpuTime = -1, speedup = -1/gpuTime = negative)
+  if (!isFinite(speedup) || speedup < 0) {
+    return { text: '-', className: 'speedup-neutral' };
+  }
+
   const text = speedup >= 1 ? `${speedup.toFixed(2)}×` : `${speedup.toFixed(2)}×`;
 
   let className = 'speedup-neutral';
@@ -191,7 +196,9 @@ export default function BenchmarkHistory({ results, onClear }: Props) {
                   <td className="dimensions-cell" title={dimensions}>
                     {dimensions}
                   </td>
-                  <td className="cpu-time-cell">{result.cpuTime.toFixed(2)}</td>
+                  <td className="cpu-time-cell">
+                    {result.cpuTime === -1 ? '-' : result.cpuTime.toFixed(2)}
+                  </td>
                   <td className="gpu-time-cell">{result.gpuTime.toFixed(2)}</td>
                   <td className={`speedup-cell ${speedup.className}`}>
                     {speedup.text}
