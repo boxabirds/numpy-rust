@@ -4,7 +4,7 @@
 //! functions, leveraging ndarray-stats where applicable.
 
 use ndarray::{Array1, ArrayBase, Data, Dimension};
-use num_traits::Float;
+use num_traits::{Float, Zero, One};
 use crate::error::{NumpyError, Result};
 
 /// Compute the arithmetic mean along an axis
@@ -21,14 +21,14 @@ use crate::error::{NumpyError, Result};
 pub fn mean<S, D>(arr: &ArrayBase<S, D>) -> Result<S::Elem>
 where
     S: Data,
-    S::Elem: Float,
+    S::Elem: Float + Zero,
     D: Dimension,
 {
     if arr.len() == 0 {
         return Err(NumpyError::ValueError("Cannot compute mean of empty array".to_string()));
     }
 
-    let sum = arr.iter().cloned().fold(S::Elem::zero(), |acc, x| acc + x);
+    let sum = arr.iter().cloned().fold(Zero::zero(), |acc, x| acc + x);
     let n = S::Elem::from(arr.len()).unwrap();
     Ok(sum / n)
 }
@@ -38,7 +38,7 @@ pub fn average<S, D, W>(arr: &ArrayBase<S, D>, weights: Option<&ArrayBase<W, D>>
 where
     S: Data,
     W: Data<Elem = S::Elem>,
-    S::Elem: Float,
+    S::Elem: Float + Zero + Copy,
     D: Dimension,
 {
     if arr.len() == 0 {
@@ -57,11 +57,12 @@ where
 
             let weighted_sum = ndarray::Zip::from(arr)
                 .and(w)
-                .fold(S::Elem::zero(), |acc, &x, &weight| acc + x * weight);
+                .fold(Zero::zero(), |acc, &x, &weight| acc + x * weight);
 
-            let weight_sum = w.iter().cloned().fold(S::Elem::zero(), |acc, x| acc + x);
+            let weight_sum = w.iter().cloned().fold(Zero::zero(), |acc, x| acc + x);
 
-            if weight_sum == S::Elem::zero() {
+            let zero = Zero::zero();
+            if weight_sum == zero {
                 return Err(NumpyError::ValueError("Sum of weights is zero".to_string()));
             }
 
@@ -84,7 +85,7 @@ where
 pub fn median<S>(arr: &ArrayBase<S, ndarray::Ix1>) -> Result<S::Elem>
 where
     S: Data,
-    S::Elem: Float + Ord,
+    S::Elem: Float + Ord + One,
 {
     if arr.len() == 0 {
         return Err(NumpyError::ValueError("Cannot compute median of empty array".to_string()));
@@ -95,7 +96,8 @@ where
 
     let mid = sorted.len() / 2;
     if sorted.len() % 2 == 0 {
-        Ok((sorted[mid - 1] + sorted[mid]) / (S::Elem::one() + S::Elem::one()))
+        let one = One::one();
+        Ok((sorted[mid - 1] + sorted[mid]) / (one + one))
     } else {
         Ok(sorted[mid])
     }
@@ -115,7 +117,7 @@ where
 pub fn var<S, D>(arr: &ArrayBase<S, D>, ddof: usize) -> Result<S::Elem>
 where
     S: Data,
-    S::Elem: Float,
+    S::Elem: Float + Zero,
     D: Dimension,
 {
     if arr.len() <= ddof {
@@ -130,7 +132,7 @@ where
         diff * diff
     });
 
-    let sum = squared_diffs.iter().cloned().fold(S::Elem::zero(), |acc, x| acc + x);
+    let sum = squared_diffs.iter().cloned().fold(Zero::zero(), |acc, x| acc + x);
     let n = S::Elem::from(arr.len() - ddof).unwrap();
     Ok(sum / n)
 }

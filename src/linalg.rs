@@ -135,7 +135,7 @@ pub fn solve<S1, S2>(
 where
     S1: Data,
     S2: Data<Elem = S1::Elem>,
-    S1::Elem: Float,
+    S1::Elem: Float + 'static,
 {
     if a.shape() == [2, 2] && b.len() == 2 {
         solve_2x2(&a.to_owned(), &b.to_owned())
