@@ -1,0 +1,377 @@
+//! Linear algebra operations
+//!
+//! This module provides linear algebra functions similar to NumPy's linalg module.
+//! Full functionality requires the "linalg" feature to be enabled.
+
+use ndarray::{Array1, Array2, ArrayBase, Data, Ix2};
+use num_traits::{Float, Num};
+use crate::error::{NumpyError, Result};
+
+#[cfg(feature = "linalg")]
+use ndarray_linalg::{Eig, Inverse, Norm, Solve, SVD, Determinant, QR, Cholesky, Scalar};
+
+/// Matrix multiplication
+///
+/// # Examples
+///
+/// ```
+/// use numpy_rust::linalg::matmul;
+/// use ndarray::array;
+///
+/// let a = array![[1.0, 2.0], [3.0, 4.0]];
+/// let b = array![[5.0, 6.0], [7.0, 8.0]];
+/// let c = matmul(&a, &b).unwrap();
+/// ```
+pub fn matmul<S1, S2>(
+    a: &ArrayBase<S1, Ix2>,
+    b: &ArrayBase<S2, Ix2>,
+) -> Result<Array2<S1::Elem>>
+where
+    S1: Data,
+    S2: Data<Elem = S1::Elem>,
+    S1::Elem: Num + Copy,
+{
+    if a.ncols() != b.nrows() {
+        return Err(NumpyError::ShapeMismatch {
+            expected: vec![a.nrows(), a.ncols()],
+            got: vec![b.nrows(), b.ncols()],
+        });
+    }
+    Ok(a.dot(b))
+}
+
+/// Matrix dot product (alias for matmul)
+pub fn dot<S1, S2>(a: &ArrayBase<S1, Ix2>, b: &ArrayBase<S2, Ix2>) -> Result<Array2<S1::Elem>>
+where
+    S1: Data,
+    S2: Data<Elem = S1::Elem>,
+    S1::Elem: Num + Copy,
+{
+    matmul(a, b)
+}
+
+/// Compute the determinant of a matrix
+///
+/// # Examples
+///
+/// ```
+/// use numpy_rust::linalg::det;
+/// use ndarray::array;
+///
+/// let a = array![[1.0, 2.0], [3.0, 4.0]];
+/// let d = det(&a).unwrap();
+/// ```
+pub fn det<S>(a: &ArrayBase<S, Ix2>) -> Result<S::Elem>
+where
+    S: Data,
+    S::Elem: Determinant<Elem = S::Elem>,
+{
+    a.det()
+        .map_err(|e| NumpyError::LinalgError(format!("Determinant computation failed: {:?}", e)))
+}
+
+/// Compute the inverse of a matrix
+///
+/// # Examples
+///
+/// ```
+/// use numpy_rust::linalg::inv;
+/// use ndarray::array;
+///
+/// let a = array![[1.0, 2.0], [3.0, 4.0]];
+/// let a_inv = inv(&a).unwrap();
+/// ```
+pub fn inv<S>(a: &ArrayBase<S, Ix2>) -> Result<Array2<S::Elem>>
+where
+    S: Data,
+    S::Elem: Inverse<Elem = S::Elem>,
+{
+    a.inv()
+        .map_err(|e| NumpyError::LinalgError(format!("Matrix inversion failed: {:?}", e)))
+}
+
+/// Solve a linear system Ax = b
+///
+/// # Examples
+///
+/// ```
+/// use numpy_rust::linalg::solve;
+/// use ndarray::array;
+///
+/// let a = array![[3.0, 1.0], [1.0, 2.0]];
+/// let b = array![9.0, 8.0];
+/// let x = solve(&a, &b).unwrap();
+/// ```
+pub fn solve<S1, S2>(
+    a: &ArrayBase<S1, Ix2>,
+    b: &ArrayBase<S2, ndarray::Ix1>,
+) -> Result<Array1<S1::Elem>>
+where
+    S1: Data,
+    S2: Data<Elem = S1::Elem>,
+    S1::Elem: Solve<Elem = S1::Elem>,
+{
+    a.solve_into(b.to_owned())
+        .map_err(|e| NumpyError::LinalgError(format!("Linear system solve failed: {:?}", e)))
+}
+
+/// Compute eigenvalues and eigenvectors
+///
+/// # Examples
+///
+/// ```
+/// use numpy_rust::linalg::eig;
+/// use ndarray::array;
+///
+/// let a = array![[1.0, 2.0], [2.0, 1.0]];
+/// let (eigenvalues, eigenvectors) = eig(&a).unwrap();
+/// ```
+pub fn eig<S>(a: &ArrayBase<S, Ix2>) -> Result<(Array1<S::Elem::Complex>, Array2<S::Elem::Complex>)>
+where
+    S: Data,
+    S::Elem: Eig,
+{
+    a.eig()
+        .map_err(|e| NumpyError::LinalgError(format!("Eigenvalue computation failed: {:?}", e)))
+}
+
+/// Compute singular value decomposition
+///
+/// Returns (U, S, Vt) such that A = U @ diag(S) @ Vt
+///
+/// # Examples
+///
+/// ```
+/// use numpy_rust::linalg::svd;
+/// use ndarray::array;
+///
+/// let a = array![[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]];
+/// let (u, s, vt) = svd(&a).unwrap();
+/// ```
+pub fn svd<S>(a: &ArrayBase<S, Ix2>) -> Result<(Array2<S::Elem>, Array1<S::Elem::Real>, Array2<S::Elem>)>
+where
+    S: Data,
+    S::Elem: SVD<Elem = S::Elem>,
+{
+    a.svd(true, true)
+        .map(|(u, s, vt)| (u.unwrap(), s, vt.unwrap()))
+        .map_err(|e| NumpyError::LinalgError(format!("SVD computation failed: {:?}", e)))
+}
+
+/// Compute QR decomposition
+///
+/// Returns (Q, R) such that A = Q @ R
+///
+/// # Examples
+///
+/// ```
+/// use numpy_rust::linalg::qr;
+/// use ndarray::array;
+///
+/// let a = array![[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]];
+/// let (q, r) = qr(&a).unwrap();
+/// ```
+pub fn qr<S>(a: &ArrayBase<S, Ix2>) -> Result<(Array2<S::Elem>, Array2<S::Elem>)>
+where
+    S: Data,
+    S::Elem: QR<Elem = S::Elem>,
+{
+    a.qr()
+        .map_err(|e| NumpyError::LinalgError(format!("QR decomposition failed: {:?}", e)))
+}
+
+/// Compute Cholesky decomposition
+///
+/// Returns lower triangular matrix L such that A = L @ L.T
+///
+/// # Examples
+///
+/// ```
+/// use numpy_rust::linalg::cholesky;
+/// use ndarray::array;
+///
+/// let a = array![[4.0, 2.0], [2.0, 3.0]];
+/// let l = cholesky(&a).unwrap();
+/// ```
+pub fn cholesky<S>(a: &ArrayBase<S, Ix2>) -> Result<Array2<S::Elem>>
+where
+    S: Data,
+    S::Elem: Cholesky<Elem = S::Elem>,
+{
+    a.cholesky(ndarray_linalg::UPLO::Lower)
+        .map_err(|e| NumpyError::LinalgError(format!("Cholesky decomposition failed: {:?}", e)))
+}
+
+/// Compute the matrix rank
+pub fn matrix_rank<S>(a: &ArrayBase<S, Ix2>, tol: Option<S::Elem::Real>) -> Result<usize>
+where
+    S: Data,
+    S::Elem: SVD<Elem = S::Elem> + Scalar,
+    S::Elem::Real: Float,
+{
+    let (_u, s, _vt) = a
+        .svd(false, false)
+        .map_err(|e| NumpyError::LinalgError(format!("SVD for rank computation failed: {:?}", e)))?;
+
+    let threshold = match tol {
+        Some(t) => t,
+        None => {
+            let max_s = s.iter().cloned().fold(S::Elem::Real::zero(), |a, b| a.max(b));
+            let m = a.nrows();
+            let n = a.ncols();
+            let max_dim = m.max(n) as f64;
+            max_s * S::Elem::Real::from(max_dim).unwrap() * S::Elem::Real::epsilon()
+        }
+    };
+
+    Ok(s.iter().filter(|&&x| x > threshold).count())
+}
+
+/// Compute the trace of a matrix (sum of diagonal elements)
+pub fn trace<S>(a: &ArrayBase<S, Ix2>) -> S::Elem
+where
+    S: Data,
+    S::Elem: ndarray_linalg::Lapack,
+{
+    let n = a.nrows().min(a.ncols());
+    (0..n).map(|i| a[[i, i]]).fold(S::Elem::zero(), |acc, x| acc + x)
+}
+
+/// Compute various matrix norms
+pub fn norm<S>(a: &ArrayBase<S, Ix2>, ord: NormType) -> Result<S::Elem::Real>
+where
+    S: Data,
+    S::Elem: Norm<Elem = S::Elem>,
+{
+    match ord {
+        NormType::Frobenius => Ok(a.norm_l2()),
+        NormType::Inf => {
+            // Infinity norm: maximum absolute row sum
+            let mut max_sum = S::Elem::Real::zero();
+            for row in a.rows() {
+                let sum = row.iter().map(|x| x.abs()).fold(S::Elem::Real::zero(), |acc, x| acc + x);
+                max_sum = max_sum.max(sum);
+            }
+            Ok(max_sum)
+        }
+        NormType::One => {
+            // 1-norm: maximum absolute column sum
+            let mut max_sum = S::Elem::Real::zero();
+            for col in a.columns() {
+                let sum = col.iter().map(|x| x.abs()).fold(S::Elem::Real::zero(), |acc, x| acc + x);
+                max_sum = max_sum.max(sum);
+            }
+            Ok(max_sum)
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum NormType {
+    /// Frobenius norm
+    Frobenius,
+    /// Infinity norm (maximum absolute row sum)
+    Inf,
+    /// 1-norm (maximum absolute column sum)
+    One,
+}
+
+/// Compute the condition number of a matrix
+pub fn cond<S>(a: &ArrayBase<S, Ix2>) -> Result<S::Elem::Real>
+where
+    S: Data,
+    S::Elem: SVD<Elem = S::Elem> + Scalar,
+    S::Elem::Real: Float,
+{
+    let (_u, s, _vt) = a
+        .svd(false, false)
+        .map_err(|e| NumpyError::LinalgError(format!("SVD for condition number failed: {:?}", e)))?;
+
+    if s.len() == 0 {
+        return Err(NumpyError::LinalgError("Empty singular values".to_string()));
+    }
+
+    let max_s = s.iter().cloned().fold(S::Elem::Real::zero(), |a, b| a.max(b));
+    let min_s = s.iter().cloned().fold(S::Elem::Real::infinity(), |a, b| a.min(b));
+
+    if min_s == S::Elem::Real::zero() {
+        return Ok(S::Elem::Real::infinity());
+    }
+
+    Ok(max_s / min_s)
+}
+
+/// Compute the transpose of a matrix
+pub fn transpose<S>(a: &ArrayBase<S, Ix2>) -> Array2<S::Elem>
+where
+    S: Data,
+    S::Elem: Clone,
+{
+    a.t().to_owned()
+}
+
+/// Compute matrix power
+pub fn matrix_power<S>(a: &ArrayBase<S, Ix2>, n: i32) -> Result<Array2<S::Elem>>
+where
+    S: Data,
+    S::Elem: ndarray_linalg::Lapack + Inverse<Elem = S::Elem>,
+{
+    if a.nrows() != a.ncols() {
+        return Err(NumpyError::ShapeMismatch {
+            expected: vec![a.nrows(), a.nrows()],
+            got: vec![a.nrows(), a.ncols()],
+        });
+    }
+
+    if n == 0 {
+        return Ok(Array2::eye(a.nrows()));
+    }
+
+    let mut result = if n > 0 {
+        a.to_owned()
+    } else {
+        inv(a)?
+    };
+
+    let abs_n = n.abs() as usize;
+    for _ in 1..abs_n {
+        result = result.dot(&result);
+    }
+
+    Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ndarray::array;
+    use approx::assert_relative_eq;
+
+    #[test]
+    fn test_matmul() {
+        let a = array![[1.0, 2.0], [3.0, 4.0]];
+        let b = array![[5.0, 6.0], [7.0, 8.0]];
+        let c = matmul(&a, &b).unwrap();
+        assert_eq!(c, array![[19.0, 22.0], [43.0, 50.0]]);
+    }
+
+    #[test]
+    fn test_det() {
+        let a = array![[1.0, 2.0], [3.0, 4.0]];
+        let d = det(&a).unwrap();
+        assert_relative_eq!(d, -2.0, epsilon = 1e-10);
+    }
+
+    #[test]
+    fn test_trace() {
+        let a = array![[1.0, 2.0], [3.0, 4.0]];
+        assert_relative_eq!(trace(&a), 5.0);
+    }
+
+    #[test]
+    fn test_transpose() {
+        let a = array![[1.0, 2.0], [3.0, 4.0]];
+        let at = transpose(&a);
+        assert_eq!(at, array![[1.0, 3.0], [2.0, 4.0]]);
+    }
+}
