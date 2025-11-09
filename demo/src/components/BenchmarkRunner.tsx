@@ -27,6 +27,15 @@ export default function BenchmarkRunner({ worker, onResults }: Props) {
 
   const sizes = operation === 'matmul' ? MATRIX_SIZES : ARRAY_SIZES;
 
+  // Update size when operation changes to use appropriate default
+  useEffect(() => {
+    if (operation === 'matmul') {
+      setSize(512); // Good default for matmul
+    } else {
+      setSize(100000); // Need larger size for elementwise to benefit from GPU
+    }
+  }, [operation]);
+
   useEffect(() => {
     if (!worker) {
       console.log('[BenchmarkRunner] No worker available');
