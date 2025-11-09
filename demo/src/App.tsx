@@ -21,7 +21,7 @@ export default function App() {
         }
 
         // Load WASM module
-        const module = await import('../../pkg/numpy_rust');
+        const module = await import('../pkg/numpy_rust');
 
         // Initialize GPU
         await module.init_gpu();
