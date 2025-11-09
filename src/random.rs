@@ -3,9 +3,9 @@
 //! This module provides random number generation functions similar to NumPy's
 //! random module, using the rand crate ecosystem.
 
-use ndarray::{Array, Array1, Array2, ArrayD, IxDyn};
+use ndarray::{Array, Array1, ArrayD, IxDyn};
 use ndarray_rand::RandomExt;
-use ndarray_rand::rand_distr::{Distribution, Normal, Uniform, StandardNormal, Exp, Beta, Gamma};
+use ndarray_rand::rand_distr::{Normal, Uniform, StandardNormal, Exp, Beta, Gamma};
 use rand::Rng;
 use crate::error::{NumpyError, Result};
 
@@ -148,20 +148,20 @@ mod tests {
 
     #[test]
     fn test_rand() {
-        let r = rand(vec![3, 4].into());
+        let r = rand(IxDyn(&[3, 4]));
         assert_eq!(r.shape(), &[3, 4]);
         assert!(r.iter().all(|&x| x >= 0.0 && x < 1.0));
     }
 
     #[test]
     fn test_randn() {
-        let r = randn(vec![100].into());
+        let r = randn(IxDyn(&[100]));
         assert_eq!(r.len(), 100);
     }
 
     #[test]
     fn test_randint() {
-        let r = randint(0, 10, vec![100].into()).unwrap();
+        let r = randint(0, 10, IxDyn(&[100])).unwrap();
         assert!(r.iter().all(|&x| x >= 0 && x < 10));
     }
 

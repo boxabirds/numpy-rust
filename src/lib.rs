@@ -21,8 +21,8 @@
 //!
 //! // Create arrays
 //! let a = array![1.0, 2.0, 3.0, 4.0, 5.0];
-//! let b = zeros(5);
-//! let c = linspace(0.0, 10.0, 50);
+//! let b = zeros::<f64>(IxDyn(&[5]));
+//! let c = linspace(0.0, 10.0, 50).unwrap();
 //!
 //! // Mathematical operations
 //! let sin_values = a.mapv(f64::sin);

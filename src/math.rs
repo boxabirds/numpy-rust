@@ -5,7 +5,6 @@
 
 use ndarray::{Array, ArrayBase, Data, Dimension};
 use num_traits::{Float, Num, Zero, One};
-use num_complex::Complex;
 
 /// Compute sine element-wise
 pub fn sin<S, D>(arr: &ArrayBase<S, D>) -> Array<S::Elem, D>
@@ -342,8 +341,8 @@ where
     S::Elem: Num + Clone + Zero,
 {
     let mut result = Vec::with_capacity(arr.len());
-    let mut acc = Zero::zero();
-    for &x in arr.iter() {
+    let mut acc: S::Elem = Zero::zero();
+    for x in arr.iter() {
         acc = acc + x.clone();
         result.push(acc.clone());
     }
@@ -357,8 +356,8 @@ where
     S::Elem: Num + Clone + One,
 {
     let mut result = Vec::with_capacity(arr.len());
-    let mut acc = One::one();
-    for &x in arr.iter() {
+    let mut acc: S::Elem = One::one();
+    for x in arr.iter() {
         acc = acc * x.clone();
         result.push(acc.clone());
     }
@@ -442,7 +441,7 @@ where
     }
 
     let result_len = n + m - 1;
-    let mut result = vec![Zero::zero(); result_len];
+    let mut result: Vec<S1::Elem> = vec![Zero::zero(); result_len];
 
     for i in 0..n {
         for j in 0..m {

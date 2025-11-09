@@ -4,7 +4,7 @@
 //! similar to NumPy's sorting functions.
 
 use ndarray::{Array1, ArrayBase, Data, Ix1};
-use num_traits::{Float, Num, Zero};
+use num_traits::{Num, Zero};
 use crate::error::{NumpyError, Result};
 
 /// Sort an array in-place

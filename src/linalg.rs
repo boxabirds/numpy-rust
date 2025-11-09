@@ -3,7 +3,7 @@
 //! This module provides basic linear algebra functions.
 
 use ndarray::{Array1, Array2, ArrayBase, Data, Ix2};
-use num_traits::{Float, Num, One, Zero};
+use num_traits::{Float, Num, Zero};
 use crate::error::{NumpyError, Result};
 
 /// Matrix multiplication

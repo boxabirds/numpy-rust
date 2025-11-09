@@ -4,7 +4,7 @@
 //! functions, leveraging ndarray-stats where applicable.
 
 use ndarray::{Array1, ArrayBase, Data, Dimension};
-use num_traits::{Float, Zero, One};
+use num_traits::{Float, Zero, One, FromPrimitive, ToPrimitive};
 use crate::error::{NumpyError, Result};
 
 /// Compute the arithmetic mean along an axis
@@ -21,15 +21,15 @@ use crate::error::{NumpyError, Result};
 pub fn mean<S, D>(arr: &ArrayBase<S, D>) -> Result<S::Elem>
 where
     S: Data,
-    S::Elem: Float + Zero,
+    S::Elem: Float + Zero + FromPrimitive,
     D: Dimension,
 {
     if arr.len() == 0 {
         return Err(NumpyError::ValueError("Cannot compute mean of empty array".to_string()));
     }
 
-    let sum = arr.iter().cloned().fold(Zero::zero(), |acc, x| acc + x);
-    let n = S::Elem::from(arr.len()).unwrap();
+    let sum: S::Elem = arr.iter().cloned().fold(Zero::zero(), |acc: S::Elem, x| acc + x);
+    let n = S::Elem::from_usize(arr.len()).unwrap();
     Ok(sum / n)
 }
 
@@ -38,7 +38,7 @@ pub fn average<S, D, W>(arr: &ArrayBase<S, D>, weights: Option<&ArrayBase<W, D>>
 where
     S: Data,
     W: Data<Elem = S::Elem>,
-    S::Elem: Float + Zero + Copy,
+    S::Elem: Float + Zero + Copy + FromPrimitive,
     D: Dimension,
 {
     if arr.len() == 0 {
@@ -55,13 +55,13 @@ where
                 });
             }
 
-            let weighted_sum = ndarray::Zip::from(arr)
+            let weighted_sum: S::Elem = ndarray::Zip::from(arr)
                 .and(w)
-                .fold(Zero::zero(), |acc, &x, &weight| acc + x * weight);
+                .fold(Zero::zero(), |acc: S::Elem, &x, &weight| acc + x * weight);
 
-            let weight_sum = w.iter().cloned().fold(Zero::zero(), |acc, x| acc + x);
+            let weight_sum: S::Elem = w.iter().cloned().fold(Zero::zero(), |acc: S::Elem, x| acc + x);
 
-            let zero = Zero::zero();
+            let zero: S::Elem = Zero::zero();
             if weight_sum == zero {
                 return Err(NumpyError::ValueError("Sum of weights is zero".to_string()));
             }
@@ -85,7 +85,7 @@ where
 pub fn median<S>(arr: &ArrayBase<S, ndarray::Ix1>) -> Result<S::Elem>
 where
     S: Data,
-    S::Elem: Float + Ord + One,
+    S::Elem: Float + One + FromPrimitive,
 {
     if arr.len() == 0 {
         return Err(NumpyError::ValueError("Cannot compute median of empty array".to_string()));
@@ -96,8 +96,8 @@ where
 
     let mid = sorted.len() / 2;
     if sorted.len() % 2 == 0 {
-        let one = One::one();
-        Ok((sorted[mid - 1] + sorted[mid]) / (one + one))
+        let two = S::Elem::from_u8(2).unwrap();
+        Ok((sorted[mid - 1] + sorted[mid]) / two)
     } else {
         Ok(sorted[mid])
     }
@@ -117,7 +117,7 @@ where
 pub fn var<S, D>(arr: &ArrayBase<S, D>, ddof: usize) -> Result<S::Elem>
 where
     S: Data,
-    S::Elem: Float + Zero,
+    S::Elem: Float + Zero + FromPrimitive,
     D: Dimension,
 {
     if arr.len() <= ddof {
@@ -132,8 +132,8 @@ where
         diff * diff
     });
 
-    let sum = squared_diffs.iter().cloned().fold(Zero::zero(), |acc, x| acc + x);
-    let n = S::Elem::from(arr.len() - ddof).unwrap();
+    let sum: S::Elem = squared_diffs.iter().cloned().fold(Zero::zero(), |acc: S::Elem, x| acc + x);
+    let n = S::Elem::from_usize(arr.len() - ddof).unwrap();
     Ok(sum / n)
 }
 
@@ -151,7 +151,7 @@ where
 pub fn std<S, D>(arr: &ArrayBase<S, D>, ddof: usize) -> Result<S::Elem>
 where
     S: Data,
-    S::Elem: Float,
+    S::Elem: Float + Zero + FromPrimitive,
     D: Dimension,
 {
     let v = var(arr, ddof)?;
@@ -172,7 +172,7 @@ where
 pub fn percentile<S>(arr: &ArrayBase<S, ndarray::Ix1>, q: f64) -> Result<S::Elem>
 where
     S: Data,
-    S::Elem: Float,
+    S::Elem: Float + One + FromPrimitive,
 {
     if arr.len() == 0 {
         return Err(NumpyError::ValueError("Cannot compute percentile of empty array".to_string()));
@@ -194,8 +194,9 @@ where
     if lower == upper {
         Ok(sorted[lower])
     } else {
-        let fraction = S::Elem::from(index - lower as f64).unwrap();
-        Ok(sorted[lower] * (S::Elem::one() - fraction) + sorted[upper] * fraction)
+        let fraction = S::Elem::from_f64(index - lower as f64).unwrap();
+        let one: S::Elem = One::one();
+        Ok(sorted[lower] * (one - fraction) + sorted[upper] * fraction)
     }
 }
 
@@ -203,7 +204,7 @@ where
 pub fn quantile<S>(arr: &ArrayBase<S, ndarray::Ix1>, q: f64) -> Result<S::Elem>
 where
     S: Data,
-    S::Elem: Float,
+    S::Elem: Float + One + FromPrimitive,
 {
     percentile(arr, q * 100.0)
 }
@@ -264,7 +265,7 @@ where
 pub fn corrcoef<S>(x: &ArrayBase<S, ndarray::Ix1>, y: &ArrayBase<S, ndarray::Ix1>) -> Result<S::Elem>
 where
     S: Data,
-    S::Elem: Float,
+    S::Elem: Float + FromPrimitive,
 {
     if x.len() != y.len() {
         return Err(NumpyError::ShapeMismatch {
@@ -304,7 +305,7 @@ where
 pub fn cov<S>(x: &ArrayBase<S, ndarray::Ix1>, y: &ArrayBase<S, ndarray::Ix1>, ddof: usize) -> Result<S::Elem>
 where
     S: Data,
-    S::Elem: Float,
+    S::Elem: Float + FromPrimitive,
 {
     if x.len() != y.len() {
         return Err(NumpyError::ShapeMismatch {
@@ -327,7 +328,7 @@ where
         covariance = covariance + (x[i] - mean_x) * (y[i] - mean_y);
     }
 
-    let n = S::Elem::from(x.len() - ddof).unwrap();
+    let n = S::Elem::from_usize(x.len() - ddof).unwrap();
     Ok(covariance / n)
 }
 
@@ -338,7 +339,7 @@ pub fn histogram<S>(
 ) -> Result<(Array1<usize>, Array1<S::Elem>)>
 where
     S: Data,
-    S::Elem: Float,
+    S::Elem: Float + FromPrimitive + ToPrimitive,
 {
     if arr.len() == 0 {
         return Err(NumpyError::ValueError("Cannot compute histogram of empty array".to_string()));
@@ -351,12 +352,12 @@ where
     let min_val = min(arr)?;
     let max_val = max(arr)?;
 
-    let bin_width = (max_val - min_val) / S::Elem::from(bins).unwrap();
+    let bin_width = (max_val - min_val) / S::Elem::from_usize(bins).unwrap();
     let mut counts = vec![0usize; bins];
     let mut edges = Vec::with_capacity(bins + 1);
 
     for i in 0..=bins {
-        edges.push(min_val + S::Elem::from(i).unwrap() * bin_width);
+        edges.push(min_val + S::Elem::from_usize(i).unwrap() * bin_width);
     }
 
     for &val in arr.iter() {
@@ -379,7 +380,7 @@ pub fn binned_statistic<S, F>(
 ) -> Result<(Array1<S::Elem>, Array1<S::Elem>)>
 where
     S: Data,
-    S::Elem: Float,
+    S::Elem: Float + FromPrimitive + ToPrimitive,
     F: Fn(&[S::Elem]) -> S::Elem,
 {
     if arr.len() != values.len() {
@@ -400,12 +401,12 @@ where
     let min_val = min(arr)?;
     let max_val = max(arr)?;
 
-    let bin_width = (max_val - min_val) / S::Elem::from(bins).unwrap();
+    let bin_width = (max_val - min_val) / S::Elem::from_usize(bins).unwrap();
     let mut bin_values: Vec<Vec<S::Elem>> = vec![Vec::new(); bins];
     let mut edges = Vec::with_capacity(bins + 1);
 
     for i in 0..=bins {
-        edges.push(min_val + S::Elem::from(i).unwrap() * bin_width);
+        edges.push(min_val + S::Elem::from_usize(i).unwrap() * bin_width);
     }
 
     for i in 0..arr.len() {

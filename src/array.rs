@@ -13,8 +13,9 @@ use crate::error::{NumpyError, Result};
 ///
 /// ```
 /// use numpy_rust::array::zeros;
+/// use ndarray::IxDyn;
 ///
-/// let a = zeros::<f64>(5);
+/// let a = zeros::<f64>(IxDyn(&[5]));
 /// assert_eq!(a.len(), 5);
 /// ```
 pub fn zeros<T: Zero + Clone>(shape: impl Into<IxDyn>) -> ArrayD<T> {
@@ -37,8 +38,9 @@ pub fn zeros_2d<T: Zero + Clone>(rows: usize, cols: usize) -> Array2<T> {
 ///
 /// ```
 /// use numpy_rust::array::ones;
+/// use ndarray::IxDyn;
 ///
-/// let a = ones::<f64>(5);
+/// let a = ones::<f64>(IxDyn(&[5]));
 /// assert_eq!(a.len(), 5);
 /// ```
 pub fn ones<T: One + Clone>(shape: impl Into<IxDyn>) -> ArrayD<T> {
@@ -61,8 +63,9 @@ pub fn ones_2d<T: One + Clone>(rows: usize, cols: usize) -> Array2<T> {
 ///
 /// ```
 /// use numpy_rust::array::full;
+/// use ndarray::IxDyn;
 ///
-/// let a = full(5, 3.14);
+/// let a = full(IxDyn(&[5]), 3.14);
 /// assert_eq!(a.len(), 5);
 /// ```
 pub fn full<T: Clone>(shape: impl Into<IxDyn>, value: T) -> ArrayD<T> {
@@ -131,7 +134,7 @@ pub fn diag<T: Zero + Clone>(v: &Array1<T>) -> Array2<T> {
 /// ```
 /// use numpy_rust::array::arange;
 ///
-/// let a = arange(0.0, 10.0, 0.5);
+/// let a = arange(0.0, 10.0, 0.5).unwrap();
 /// assert_eq!(a.len(), 20);
 /// ```
 pub fn arange<T>(start: T, stop: T, step: T) -> Result<Array1<T>>
@@ -290,21 +293,21 @@ mod tests {
 
     #[test]
     fn test_zeros() {
-        let a = zeros::<f64>(vec![2, 3].into());
+        let a = zeros::<f64>(IxDyn(&[2, 3]));
         assert_eq!(a.shape(), &[2, 3]);
         assert!(a.iter().all(|&x| x == 0.0));
     }
 
     #[test]
     fn test_ones() {
-        let a = ones::<f64>(vec![2, 3].into());
+        let a = ones::<f64>(IxDyn(&[2, 3]));
         assert_eq!(a.shape(), &[2, 3]);
         assert!(a.iter().all(|&x| x == 1.0));
     }
 
     #[test]
     fn test_full() {
-        let a = full(vec![2, 3].into(), 5.0);
+        let a = full(IxDyn(&[2, 3]), 5.0);
         assert_eq!(a.shape(), &[2, 3]);
         assert!(a.iter().all(|&x| x == 5.0));
     }
@@ -348,8 +351,8 @@ mod tests {
     fn test_geomspace() {
         let a = geomspace(1.0, 1000.0, 4).unwrap();
         assert_eq!(a.len(), 4);
-        assert_relative_eq!(a[0], 1.0);
-        assert_relative_eq!(a[3], 1000.0);
+        assert_relative_eq!(a[0], 1.0, epsilon = 1e-10);
+        assert_relative_eq!(a[3], 1000.0, epsilon = 1e-10);
     }
 
     #[test]
