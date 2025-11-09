@@ -9,6 +9,9 @@ repository = "https://github.com/boxabirds/numpy-rust"
 keywords = ["numpy", "ndarray", "scientific", "numerical", "linear-algebra"]
 categories = ["science", "mathematics"]
 
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
 [dependencies]
 ndarray = { version = "0.16", features = ["rayon", "serde"] }
 ndarray-linalg = { version = "0.16", optional = true }
@@ -33,12 +36,14 @@ wasm-bindgen = { version = "0.2", optional = true }
 wasm-bindgen-futures = { version = "0.4", optional = true }
 web-sys = { version = "0.3", optional = true, features = ["Window", "Navigator", "Gpu"] }
 console_error_panic_hook = { version = "0.1", optional = true }
+js-sys = { version = "0.3", optional = true }
+getrandom = { version = "0.2", features = ["js"] }
 
 [features]
 default = []
 linalg = ["ndarray-linalg"]
 gpu = ["wgpu", "bytemuck", "pollster"]
-gpu-web = ["gpu", "wasm-bindgen", "wasm-bindgen-futures", "web-sys", "console_error_panic_hook"]
+gpu-web = ["gpu", "wasm-bindgen", "wasm-bindgen-futures", "web-sys", "console_error_panic_hook", "js-sys"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]

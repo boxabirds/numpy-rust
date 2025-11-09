@@ -164,3 +164,311 @@ body {
   padding-left: 1.5rem;
   color: var(--text-muted);
 }
+
+/* GPU Info Component */
+.gpu-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+}
+
+.gpu-info.available {
+  background: var(--success);
+  color: white;
+}
+
+.gpu-info.unavailable,
+.gpu-info.error {
+  background: var(--danger);
+  color: white;
+}
+
+.gpu-info.loading {
+  background: var(--surface-light);
+  color: var(--text-muted);
+}
+
+.gpu-info-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.gpu-status {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.gpu-detail {
+  font-size: 0.75rem;
+  opacity: 0.9;
+}
+
+/* Benchmark Runner Component */
+.benchmark-section {
+  margin-bottom: 2rem;
+}
+
+.benchmark-runner {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 2rem;
+}
+
+.operation-selector {
+  margin-bottom: 1.5rem;
+}
+
+.operation-selector label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.operation-buttons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.operation-buttons button {
+  padding: 0.5rem 1rem;
+  background: var(--surface-light);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.operation-buttons button:hover:not(:disabled) {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.operation-buttons button.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+.operation-buttons button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.size-selector {
+  margin-bottom: 1.5rem;
+}
+
+.size-selector label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.size-buttons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.size-buttons button {
+  padding: 0.5rem 1rem;
+  background: var(--surface-light);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.size-buttons button:hover:not(:disabled) {
+  background: var(--secondary);
+  border-color: var(--secondary);
+}
+
+.size-buttons button.active {
+  background: var(--secondary);
+  border-color: var(--secondary);
+  color: white;
+}
+
+.size-buttons button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.size-selector input[type="range"] {
+  width: 100%;
+  margin-bottom: 0.5rem;
+}
+
+.size-display {
+  display: block;
+  text-align: center;
+  font-weight: 600;
+  color: var(--secondary);
+}
+
+.run-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.run-button:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.run-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+.progress-indicator {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: var(--surface-light);
+  border-radius: 0.5rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* Results Display Component */
+.results-section {
+  margin-bottom: 2rem;
+}
+
+.results-display {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 2rem;
+}
+
+.results-display h2 {
+  color: var(--primary);
+  margin-bottom: 1.5rem;
+}
+
+.results-display.empty {
+  text-align: center;
+  padding: 3rem;
+}
+
+.empty-message {
+  color: var(--text-muted);
+  font-size: 1.1rem;
+}
+
+.results-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.summary-card {
+  background: var(--surface-light);
+  padding: 1rem;
+  border-radius: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.summary-label {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.summary-value {
+  color: var(--text);
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.icon-success {
+  color: var(--success);
+}
+
+.icon-error {
+  color: var(--danger);
+}
+
+.chart-container {
+  margin-bottom: 2rem;
+}
+
+.chart-container h3 {
+  color: var(--primary);
+  margin-bottom: 1rem;
+}
+
+.results-tables {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.operation-results h3 {
+  color: var(--primary);
+  margin-bottom: 1rem;
+}
+
+.results-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.results-table th {
+  background: var(--surface-light);
+  color: var(--text);
+  padding: 0.75rem;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 2px solid var(--border);
+}
+
+.results-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.results-table tr:hover {
+  background: var(--surface-light);
+}
+
+.speedup-positive {
+  color: var(--success);
+  font-weight: 600;
+}
+
+.speedup-negative {
+  color: var(--danger);
+  font-weight: 600;
+}

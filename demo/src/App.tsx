@@ -1,14 +1,18 @@
 import { useState, useEffect } from 'react';
-import { AlertCircle, Zap, Cpu } from 'lucide-react';
+import { AlertCircle, Zap } from 'lucide-react';
+import BenchmarkRunner, { BenchmarkResult } from './components/BenchmarkRunner';
+import ResultsDisplay from './components/ResultsDisplay';
+import GPUInfo from './components/GPUInfo';
 import './styles/app.css';
 
 export default function App() {
-  const [gpuAvailable, setGpuAvailable] = useState(false);
+  const [wasmModule, setWasmModule] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [results, setResults] = useState<BenchmarkResult[]>([]);
 
   useEffect(() => {
-    async function checkWebGPU() {
+    async function initWasm() {
       try {
         if (!navigator.gpu) {
           setError('WebGPU is not supported in this browser. Please use Chrome 113+ or Edge 113+.');
@@ -16,17 +20,27 @@ export default function App() {
           return;
         }
 
-        setGpuAvailable(true);
+        // Load WASM module
+        const module = await import('../../pkg/numpy_rust');
+
+        // Initialize GPU
+        await module.init_gpu();
+
+        setWasmModule(module);
         setLoading(false);
       } catch (err) {
-        console.error('Failed to check WebGPU:', err);
-        setError(`WebGPU check failed: ${err}`);
+        console.error('Failed to initialize WASM:', err);
+        setError(`WASM initialization failed: ${err}`);
         setLoading(false);
       }
     }
 
-    checkWebGPU();
+    initWasm();
   }, []);
+
+  function handleResults(result: BenchmarkResult) {
+    setResults(prev => [...prev, result]);
+  }
 
   if (loading) {
     return (
@@ -67,25 +81,24 @@ export default function App() {
             GPU-accelerated matrix operations in your browser
           </p>
         </div>
-        {gpuAvailable && (
-          <div className="gpu-badge">
-            <Cpu size={16} />
-            GPU Enabled
-          </div>
-        )}
+        {wasmModule && <GPUInfo wasmModule={wasmModule} />}
       </header>
 
       <main className="app-main">
         <section className="info-section">
-          <h2>WebGPU Detected!</h2>
+          <h2>Interactive GPU Benchmarks</h2>
           <p>
-            Your browser supports WebGPU. The numpy-rust WASM module can now use GPU acceleration
-            for matrix operations and element-wise computations.
+            Compare CPU vs GPU performance for matrix multiplication and element-wise operations.
+            Run benchmarks below to see the speedup achieved by GPU acceleration.
           </p>
-          <p>
-            <strong>Note:</strong> Full demo implementation coming soon. This demonstrates that WebGPU
-            is available and ready for GPU-accelerated computing.
-          </p>
+        </section>
+
+        <section className="benchmark-section">
+          <BenchmarkRunner wasmModule={wasmModule} onResults={handleResults} />
+        </section>
+
+        <section className="results-section">
+          <ResultsDisplay results={results} />
         </section>
 
         <section className="features">

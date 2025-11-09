@@ -41,6 +41,10 @@ pub mod error;
 #[cfg(feature = "gpu")]
 pub mod gpu;
 
+// WASM bindings for browser usage
+#[cfg(all(target_arch = "wasm32", feature = "gpu-web"))]
+pub mod wasm;
+
 // Re-export commonly used types and functions
 pub mod prelude {
     pub use ndarray::{array, s, Array, Array1, Array2, ArrayD, Axis, Dim, Ix1, Ix2, IxDyn};
