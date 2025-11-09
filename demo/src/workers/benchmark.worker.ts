@@ -57,11 +57,6 @@ async function initWasm() {
 
     postMessage({ type: 'progress', message: 'Loading WASM module in worker...' } as WorkerResponse);
 
-    // Check if we're actually in a worker
-    if (typeof WorkerGlobalScope === 'undefined') {
-      throw new Error('Not running in a Worker context!');
-    }
-
     // Load WASM module
     const module = await import('../../pkg/numpy_rust');
 
