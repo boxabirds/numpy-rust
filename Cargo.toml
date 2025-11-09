@@ -29,7 +29,13 @@ linalg = ["ndarray-linalg"]
 [dev-dependencies]
 approx = "0.5"
 criterion = "0.5"
+pyo3 = "0.22"
+numpy = "0.22"
 
 [[bench]]
 name = "array_benchmarks"
+harness = false
+
+[[bench]]
+name = "numpy_comparison"
 harness = false
