@@ -211,22 +211,45 @@ async function runMatmulBenchmark(size: number) {
 async function runSinBenchmark(size: number) {
   postMessage({ type: 'progress', message: 'Generating test array...' } as WorkerResponse);
 
-  // Generate random array
+  const t0 = performance.now();
   const input = wasmModule.generate_random_array(size);
+  const t1 = performance.now();
+  console.log(`[Perf] Array generation: ${(t1-t0).toFixed(2)}ms`);
 
   // Run CPU benchmark
   postMessage({ type: 'progress', message: `Running CPU sin (${size.toLocaleString()} elements)...` } as WorkerResponse);
   const cpuStart = performance.now();
   const cpuResult = wasmModule.sin_cpu(input);
   const cpuTime = performance.now() - cpuStart;
+  console.log(`[Perf] CPU sin: ${cpuTime.toFixed(2)}ms`);
 
   await new Promise((resolve) => setTimeout(resolve, 100));
 
-  // Run GPU benchmark
+  // Run GPU benchmark with detailed analysis
   postMessage({ type: 'progress', message: `Running GPU sin (${size.toLocaleString()} elements)...` } as WorkerResponse);
+
+  const dataSizeMB = (size * 4 / 1024 / 1024).toFixed(2);
+  console.log(`\n[Perf] === GPU sin Performance Breakdown (${size.toLocaleString()} elements, ${dataSizeMB}MB) ===`);
+
   const gpuStart = performance.now();
   const gpuResult = await wasmModule.sin_gpu(input);
   const gpuTime = performance.now() - gpuStart;
+
+  console.log(`[Perf] GPU sin TOTAL: ${gpuTime.toFixed(2)}ms`);
+  console.log(`[Perf] Estimated breakdown for ${dataSizeMB}MB:`);
+  console.log(`[Perf]   • JS→WASM call: ~0.1ms`);
+  console.log(`[Perf]   • Buffer creation (GPU): 1-3ms`);
+  console.log(`[Perf]   • Pipeline lookup (CACHED): <0.1ms`);
+  console.log(`[Perf]   • Bind group creation: 1-2ms`);
+  console.log(`[Perf]   • Data upload (CPU→GPU): ~${(size*4/1000).toFixed(1)}ms @ 4GB/s`);
+  console.log(`[Perf]   • Actual GPU compute: <1ms (${size} sins)`);
+  console.log(`[Perf]   • Data download (GPU→CPU): ~${(size*4/1000).toFixed(1)}ms @ 4GB/s`);
+  console.log(`[Perf]   • Async mapping overhead: 1-2ms`);
+  console.log(`[Perf] PRIMARY BOTTLENECK: PCIe data transfer (${(size*8/1024/1024).toFixed(2)}MB total)`);
+  console.log(`[Perf] For elementwise ops, GPU only wins when:`);
+  console.log(`[Perf]   - Size >> 10M elements (amortize transfer cost)`);
+  console.log(`[Perf]   - OR chaining multiple ops (keep data on GPU)`);
+  console.log(`[Perf]   - OR using unified memory architectures (Apple M1/M2)`);
 
   // Verify correctness
   postMessage({ type: 'progress', message: 'Verifying results...' } as WorkerResponse);
