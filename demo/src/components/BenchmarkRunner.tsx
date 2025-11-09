@@ -16,8 +16,8 @@ export interface BenchmarkResult {
   operation: 'matmul' | 'sin' | 'exp';
 }
 
-const MATRIX_SIZES = [128, 256, 512, 1024, 2048];
-const ARRAY_SIZES = [10000, 50000, 100000, 500000, 1000000];
+const MATRIX_SIZES = [128, 256, 512, 1024, 2048, 4096];
+const ARRAY_SIZES = [1000000, 10000000, 100000000]; // 1M, 10M, 100M
 
 export default function BenchmarkRunner({ worker, onResults }: Props) {
   const [operation, setOperation] = useState<'matmul' | 'sin' | 'exp'>('matmul');
@@ -30,9 +30,9 @@ export default function BenchmarkRunner({ worker, onResults }: Props) {
   // Update size when operation changes to use appropriate default
   useEffect(() => {
     if (operation === 'matmul') {
-      setSize(512); // Good default for matmul
+      setSize(1024); // Good default for matmul
     } else {
-      setSize(100000); // Need larger size for elementwise to benefit from GPU
+      setSize(10000000); // 10M - large enough to see GPU benefit
     }
   }, [operation]);
 
