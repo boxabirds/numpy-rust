@@ -121,7 +121,10 @@ pub async fn read_buffer<T: bytemuck::Pod>(
         tx.send(result).unwrap();
     });
 
-    device.poll(wgpu::Maintain::Wait);
+    // In wgpu 27+, polling is handled automatically for WebGPU
+    #[cfg(not(target_arch = "wasm32"))]
+    device.poll(wgpu::MaintainResult::SubmissionQueueEmpty);
+
     rx.recv()
         .map_err(|_| GpuError::Buffer("Failed to receive buffer mapping result".into()))?
         .map_err(|e| GpuError::Buffer(format!("Buffer mapping failed: {:?}", e)))?;

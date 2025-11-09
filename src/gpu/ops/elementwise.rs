@@ -155,7 +155,9 @@ where
         label: Some("Element-wise Pipeline"),
         layout: Some(&pipeline_layout),
         module: &shader,
-        entry_point: "elementwise_op",
+        entry_point: Some("elementwise_op"),
+        compilation_options: Default::default(),
+        cache: None,
     });
 
     // Execute compute pass
@@ -196,7 +198,10 @@ where
         tx.send(result).unwrap();
     });
 
-    ctx.device.poll(wgpu::Maintain::Wait);
+    // In wgpu 27+, polling is handled automatically for WebGPU
+    #[cfg(not(target_arch = "wasm32"))]
+    ctx.device.poll(wgpu::MaintainResult::SubmissionQueueEmpty);
+
     rx.recv()
         .map_err(|_| NumpyError::LinalgError("Failed to receive buffer mapping".into()))?
         .map_err(|e| NumpyError::LinalgError(format!("Buffer mapping failed: {:?}", e)))?;

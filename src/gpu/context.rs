@@ -49,7 +49,7 @@ impl GpuContext {
     /// This is called automatically on first use. It selects the highest
     /// performance GPU available and requests a device.
     pub async fn init() -> Result<ContextPtr> {
-        let instance = Instance::new(wgpu::InstanceDescriptor {
+        let instance = Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
         });
@@ -61,7 +61,7 @@ impl GpuContext {
                 force_fallback_adapter: false,
             })
             .await
-            .ok_or(GpuError::NoAdapter)?;
+            .map_err(|_| GpuError::NoAdapter)?;
 
         let adapter_info = adapter.get_info();
 
@@ -78,8 +78,10 @@ impl GpuContext {
                     label: Some("numpy-rust GPU"),
                     required_features: wgpu::Features::empty(),
                     required_limits: limits,
+                    memory_hints: wgpu::MemoryHints::default(),
+                    experimental_features: Default::default(),
+                    trace: wgpu::Trace::Off,
                 },
-                None,
             )
             .await?;
 
