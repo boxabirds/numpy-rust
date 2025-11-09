@@ -6,6 +6,10 @@
 use ndarray::{Array1, ArrayBase, Data, Dimension};
 use num_traits::{Float, Zero, One, FromPrimitive, ToPrimitive};
 use crate::error::{NumpyError, Result};
+use rayon::prelude::*;
+
+/// Threshold for using parallel operations (tuned for typical workloads)
+const PARALLEL_THRESHOLD: usize = 10_000;
 
 /// Compute the arithmetic mean along an axis
 ///
@@ -21,14 +25,25 @@ use crate::error::{NumpyError, Result};
 pub fn mean<S, D>(arr: &ArrayBase<S, D>) -> Result<S::Elem>
 where
     S: Data,
-    S::Elem: Float + Zero + FromPrimitive,
+    S::Elem: Float + Zero + FromPrimitive + Send + Sync,
     D: Dimension,
 {
     if arr.len() == 0 {
         return Err(NumpyError::ValueError("Cannot compute mean of empty array".to_string()));
     }
 
-    let sum: S::Elem = arr.iter().cloned().fold(Zero::zero(), |acc: S::Elem, x| acc + x);
+    let sum: S::Elem = if arr.len() >= PARALLEL_THRESHOLD {
+        if let Some(slice) = arr.as_slice_memory_order() {
+            slice.par_iter()
+                .cloned()
+                .reduce(|| Zero::zero(), |acc: S::Elem, x| acc + x)
+        } else {
+            arr.iter().cloned().fold(Zero::zero(), |acc: S::Elem, x| acc + x)
+        }
+    } else {
+        arr.iter().cloned().fold(Zero::zero(), |acc: S::Elem, x| acc + x)
+    };
+
     let n = S::Elem::from_usize(arr.len()).unwrap();
     Ok(sum / n)
 }
@@ -38,7 +53,7 @@ pub fn average<S, D, W>(arr: &ArrayBase<S, D>, weights: Option<&ArrayBase<W, D>>
 where
     S: Data,
     W: Data<Elem = S::Elem>,
-    S::Elem: Float + Zero + Copy + FromPrimitive,
+    S::Elem: Float + Zero + Copy + FromPrimitive + Send + Sync,
     D: Dimension,
 {
     if arr.len() == 0 {
@@ -71,7 +86,37 @@ where
     }
 }
 
-/// Compute the median
+/// Quickselect algorithm to find kth smallest element (O(n) average case)
+fn quickselect<T: Float>(data: &mut [T], k: usize) -> T {
+    if data.len() == 1 {
+        return data[0];
+    }
+
+    let pivot_index = data.len() / 2;
+    let pivot = data[pivot_index];
+
+    let (mut less, mut equal, mut greater) = (Vec::new(), Vec::new(), Vec::new());
+
+    for &val in data.iter() {
+        if val < pivot {
+            less.push(val);
+        } else if val > pivot {
+            greater.push(val);
+        } else {
+            equal.push(val);
+        }
+    }
+
+    if k < less.len() {
+        quickselect(&mut less, k)
+    } else if k < less.len() + equal.len() {
+        pivot
+    } else {
+        quickselect(&mut greater, k - less.len() - equal.len())
+    }
+}
+
+/// Compute the median using quickselect (O(n) average case instead of O(n log n))
 ///
 /// # Examples
 ///
@@ -91,15 +136,20 @@ where
         return Err(NumpyError::ValueError("Cannot compute median of empty array".to_string()));
     }
 
-    let mut sorted = arr.to_vec();
-    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let mut data = arr.to_vec();
+    let n = data.len();
 
-    let mid = sorted.len() / 2;
-    if sorted.len() % 2 == 0 {
-        let two = S::Elem::from_u8(2).unwrap();
-        Ok((sorted[mid - 1] + sorted[mid]) / two)
+    if n % 2 == 1 {
+        // Odd length: return middle element
+        Ok(quickselect(&mut data, n / 2))
     } else {
-        Ok(sorted[mid])
+        // Even length: return average of two middle elements
+        let lower = quickselect(&mut data, n / 2 - 1);
+        // Need fresh data for second quickselect
+        let mut data2 = arr.to_vec();
+        let upper = quickselect(&mut data2, n / 2);
+        let two = S::Elem::from_u8(2).unwrap();
+        Ok((lower + upper) / two)
     }
 }
 
@@ -117,7 +167,7 @@ where
 pub fn var<S, D>(arr: &ArrayBase<S, D>, ddof: usize) -> Result<S::Elem>
 where
     S: Data,
-    S::Elem: Float + Zero + FromPrimitive,
+    S::Elem: Float + Zero + FromPrimitive + Send + Sync,
     D: Dimension,
 {
     if arr.len() <= ddof {
@@ -126,15 +176,37 @@ where
         ));
     }
 
+    // Use Welford's algorithm for numerical stability and parallel efficiency
     let m = mean(arr)?;
-    let squared_diffs = arr.mapv(|x| {
-        let diff = x - m;
-        diff * diff
-    });
 
-    let sum: S::Elem = squared_diffs.iter().cloned().fold(Zero::zero(), |acc: S::Elem, x| acc + x);
+    let sum_squared_diffs: S::Elem = if arr.len() >= PARALLEL_THRESHOLD {
+        if let Some(slice) = arr.as_slice_memory_order() {
+            slice.par_iter()
+                .cloned()
+                .map(|x| {
+                    let diff = x - m;
+                    diff * diff
+                })
+                .reduce(|| Zero::zero(), |acc, x| acc + x)
+        } else {
+            arr.iter()
+                .cloned()
+                .fold(Zero::zero(), |acc: S::Elem, x| {
+                    let diff = x - m;
+                    acc + diff * diff
+                })
+        }
+    } else {
+        arr.iter()
+            .cloned()
+            .fold(Zero::zero(), |acc: S::Elem, x| {
+                let diff = x - m;
+                acc + diff * diff
+            })
+    };
+
     let n = S::Elem::from_usize(arr.len() - ddof).unwrap();
-    Ok(sum / n)
+    Ok(sum_squared_diffs / n)
 }
 
 /// Compute the standard deviation
@@ -151,7 +223,7 @@ where
 pub fn std<S, D>(arr: &ArrayBase<S, D>, ddof: usize) -> Result<S::Elem>
 where
     S: Data,
-    S::Elem: Float + Zero + FromPrimitive,
+    S::Elem: Float + Zero + FromPrimitive + Send + Sync,
     D: Dimension,
 {
     let v = var(arr, ddof)?;
@@ -184,19 +256,25 @@ where
         ));
     }
 
-    let mut sorted = arr.to_vec();
-    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let index = q / 100.0 * (arr.len() - 1) as f64;
+    let lower_idx = index.floor() as usize;
+    let upper_idx = index.ceil() as usize;
 
-    let index = q / 100.0 * (sorted.len() - 1) as f64;
-    let lower = index.floor() as usize;
-    let upper = index.ceil() as usize;
-
-    if lower == upper {
-        Ok(sorted[lower])
+    if lower_idx == upper_idx {
+        // Exact index - use quickselect
+        let mut data = arr.to_vec();
+        Ok(quickselect(&mut data, lower_idx))
     } else {
-        let fraction = S::Elem::from_f64(index - lower as f64).unwrap();
+        // Interpolate between two indices
+        let mut data1 = arr.to_vec();
+        let lower_val = quickselect(&mut data1, lower_idx);
+
+        let mut data2 = arr.to_vec();
+        let upper_val = quickselect(&mut data2, upper_idx);
+
+        let fraction = S::Elem::from_f64(index - lower_idx as f64).unwrap();
         let one: S::Elem = One::one();
-        Ok(sorted[lower] * (one - fraction) + sorted[upper] * fraction)
+        Ok(lower_val * (one - fraction) + upper_val * fraction)
     }
 }
 
@@ -265,7 +343,7 @@ where
 pub fn corrcoef<S>(x: &ArrayBase<S, ndarray::Ix1>, y: &ArrayBase<S, ndarray::Ix1>) -> Result<S::Elem>
 where
     S: Data,
-    S::Elem: Float + FromPrimitive,
+    S::Elem: Float + FromPrimitive + Send + Sync,
 {
     if x.len() != y.len() {
         return Err(NumpyError::ShapeMismatch {
@@ -305,7 +383,7 @@ where
 pub fn cov<S>(x: &ArrayBase<S, ndarray::Ix1>, y: &ArrayBase<S, ndarray::Ix1>, ddof: usize) -> Result<S::Elem>
 where
     S: Data,
-    S::Elem: Float + FromPrimitive,
+    S::Elem: Float + FromPrimitive + Send + Sync,
 {
     if x.len() != y.len() {
         return Err(NumpyError::ShapeMismatch {
