@@ -21,12 +21,15 @@ export default function App() {
         }
 
         // Load WASM module
-        const module = await import('../pkg/numpy_rust');
+        const wasmModule = await import('../pkg/numpy_rust');
+
+        // Initialize WASM (required before calling any functions)
+        await wasmModule.default();
 
         // Initialize GPU
-        await module.init_gpu();
+        await wasmModule.init_gpu();
 
-        setWasmModule(module);
+        setWasmModule(wasmModule);
         setLoading(false);
       } catch (err) {
         console.error('Failed to initialize WASM:', err);
