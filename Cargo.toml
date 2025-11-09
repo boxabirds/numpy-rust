@@ -1,0 +1,31 @@
+[package]
+name = "numpy_rust"
+version = "0.1.0"
+edition = "2021"
+authors = ["NumPy Rust Contributors"]
+description = "A comprehensive Rust port of NumPy, built on ndarray"
+license = "Apache-2.0"
+repository = "https://github.com/boxabirds/numpy-rust"
+keywords = ["numpy", "ndarray", "scientific", "numerical", "linear-algebra"]
+categories = ["science", "mathematics"]
+
+[dependencies]
+ndarray = { version = "0.16", features = ["rayon", "serde"] }
+ndarray-linalg = { version = "0.16", optional = true }
+ndarray-rand = "0.15"
+ndarray-stats = "0.6"
+num-traits = "0.2"
+num-complex = "0.4"
+rand = "0.8"
+rand_distr = "0.4"
+rayon = "1.10"
+thiserror = "1.0"
+rustfft = "6.2"
+
+[features]
+default = []
+linalg = ["ndarray-linalg"]
+
+[dev-dependencies]
+approx = "0.5"
+criterion = "0.5"
