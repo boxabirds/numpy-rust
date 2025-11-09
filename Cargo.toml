@@ -29,3 +29,7 @@ linalg = ["ndarray-linalg"]
 [dev-dependencies]
 approx = "0.5"
 criterion = "0.5"
+
+[[bench]]
+name = "array_benchmarks"
+harness = false
