@@ -2,7 +2,7 @@
 
 use ndarray::{Array2, ArrayBase, Data, Ix2};
 use wgpu::util::DeviceExt;
-use crate::gpu::context::GpuContext;
+use crate::gpu::context::{GpuContext, PipelineCache};
 use crate::gpu::kernels::MATMUL_SHADER;
 use crate::error::{NumpyError, Result};
 
@@ -224,7 +224,7 @@ where
 
     // In wgpu 27+, polling is handled automatically for WebGPU
     #[cfg(not(target_arch = "wasm32"))]
-    ctx.device.poll(wgpu::MaintainResult::SubmissionQueueEmpty);
+    ctx.device.poll(wgpu::Maintain::Poll);
 
     // Await the future (works in both WASM and native)
     rx.await
