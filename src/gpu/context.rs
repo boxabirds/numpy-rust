@@ -2,13 +2,36 @@
 //!
 //! Manages the global GPU device, queue, and initialization.
 
-use once_cell::sync::OnceCell;
-use std::sync::Arc;
 use wgpu::{Device, Queue, Instance};
 use crate::gpu::error::{GpuError, Result};
 
-/// Global GPU context (lazy initialized on first use)
+// For native targets, use static OnceCell (thread-safe)
+#[cfg(not(target_arch = "wasm32"))]
+use once_cell::sync::OnceCell;
+#[cfg(not(target_arch = "wasm32"))]
+use std::sync::Arc;
+
+// For WASM targets, use thread-local storage (WASM is single-threaded)
+#[cfg(target_arch = "wasm32")]
+use std::cell::RefCell;
+#[cfg(target_arch = "wasm32")]
+use std::rc::Rc;
+
+// Native: Global GPU context (lazy initialized on first use)
+#[cfg(not(target_arch = "wasm32"))]
 static GPU_CONTEXT: OnceCell<Option<Arc<GpuContext>>> = OnceCell::new();
+
+// WASM: Thread-local GPU context (WASM is single-threaded, wgpu types are !Send)
+#[cfg(target_arch = "wasm32")]
+thread_local! {
+    static GPU_CONTEXT: RefCell<Option<Rc<GpuContext>>> = RefCell::new(None);
+}
+
+// Type alias for the reference counted type (Arc for native, Rc for WASM)
+#[cfg(not(target_arch = "wasm32"))]
+type ContextPtr = Arc<GpuContext>;
+#[cfg(target_arch = "wasm32")]
+type ContextPtr = Rc<GpuContext>;
 
 /// GPU context containing device, queue, and adapter info
 pub struct GpuContext {
@@ -25,7 +48,7 @@ impl GpuContext {
     ///
     /// This is called automatically on first use. It selects the highest
     /// performance GPU available and requests a device.
-    pub async fn init() -> Result<Arc<Self>> {
+    pub async fn init() -> Result<ContextPtr> {
         let instance = Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
@@ -57,13 +80,22 @@ impl GpuContext {
             )
             .await?;
 
+        #[cfg(not(target_arch = "wasm32"))]
         println!(
             "🎮 GPU initialized: {} ({:?})",
             adapter_info.name,
             adapter_info.backend
         );
 
-        Ok(Arc::new(Self {
+        #[cfg(not(target_arch = "wasm32"))]
+        return Ok(Arc::new(Self {
+            device,
+            queue,
+            adapter_info,
+        }));
+
+        #[cfg(target_arch = "wasm32")]
+        Ok(Rc::new(Self {
             device,
             queue,
             adapter_info,
@@ -73,13 +105,33 @@ impl GpuContext {
     /// Get or initialize the global GPU context
     ///
     /// Returns None if GPU initialization failed (graceful fallback)
-    pub fn get_or_init() -> Option<Arc<Self>> {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn get_or_init() -> Option<ContextPtr> {
         GPU_CONTEXT
             .get_or_init(|| {
                 // Try to initialize GPU, return None on failure
                 pollster::block_on(Self::init()).ok()
             })
             .clone()
+    }
+
+    /// Get or initialize the global GPU context (WASM version)
+    ///
+    /// Returns None if GPU initialization failed (graceful fallback)
+    #[cfg(target_arch = "wasm32")]
+    pub fn get_or_init() -> Option<ContextPtr> {
+        GPU_CONTEXT.with(|cell| {
+            let context = cell.borrow();
+            context.clone()
+        })
+    }
+
+    /// Set the GPU context (WASM only, called from async init_gpu)
+    #[cfg(target_arch = "wasm32")]
+    pub fn set(ctx: ContextPtr) {
+        GPU_CONTEXT.with(|cell| {
+            *cell.borrow_mut() = Some(ctx);
+        });
     }
 
     /// Check if GPU is available

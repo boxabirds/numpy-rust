@@ -1,0 +1,474 @@
+:root {
+  --primary: #3b82f6;
+  --secondary: #10b981;
+  --danger: #ef4444;
+  --background: #0f172a;
+  --surface: #1e293b;
+  --surface-light: #334155;
+  --text: #f1f5f9;
+  --text-muted: #94a3b8;
+  --border: #334155;
+  --success: #10b981;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  background: var(--background);
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header-content h1 {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.logo {
+  color: var(--primary);
+}
+
+.subtitle {
+  color: var(--text-muted);
+  font-size: 1rem;
+}
+
+.gpu-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--success);
+  color: white;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+}
+
+.app-main {
+  flex: 1;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.info-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 2rem;
+  margin-bottom: 2rem;
+}
+
+.info-section h2 {
+  color: var(--primary);
+  margin-bottom: 1rem;
+}
+
+.features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.feature-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+}
+
+.feature-card h3 {
+  color: var(--primary);
+  margin-bottom: 0.75rem;
+}
+
+.app-footer {
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 2rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.app-footer a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.loading-screen,
+.error-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--surface-light);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.error-screen svg {
+  color: var(--danger);
+  margin-bottom: 1rem;
+}
+
+.error-help {
+  margin-top: 2rem;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  max-width: 600px;
+}
+
+.error-help ul {
+  padding-left: 1.5rem;
+  color: var(--text-muted);
+}
+
+/* GPU Info Component */
+.gpu-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+}
+
+.gpu-info.available {
+  background: var(--success);
+  color: white;
+}
+
+.gpu-info.unavailable,
+.gpu-info.error {
+  background: var(--danger);
+  color: white;
+}
+
+.gpu-info.loading {
+  background: var(--surface-light);
+  color: var(--text-muted);
+}
+
+.gpu-info-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.gpu-status {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.gpu-detail {
+  font-size: 0.75rem;
+  opacity: 0.9;
+}
+
+/* Benchmark Runner Component */
+.benchmark-section {
+  margin-bottom: 2rem;
+}
+
+.benchmark-runner {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 2rem;
+}
+
+.operation-selector {
+  margin-bottom: 1.5rem;
+}
+
+.operation-selector label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.operation-buttons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.operation-buttons button {
+  padding: 0.5rem 1rem;
+  background: var(--surface-light);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.operation-buttons button:hover:not(:disabled) {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.operation-buttons button.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+.operation-buttons button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.size-selector {
+  margin-bottom: 1.5rem;
+}
+
+.size-selector label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.size-buttons {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.size-buttons button {
+  padding: 0.5rem 1rem;
+  background: var(--surface-light);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.size-buttons button:hover:not(:disabled) {
+  background: var(--secondary);
+  border-color: var(--secondary);
+}
+
+.size-buttons button.active {
+  background: var(--secondary);
+  border-color: var(--secondary);
+  color: white;
+}
+
+.size-buttons button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.size-selector input[type="range"] {
+  width: 100%;
+  margin-bottom: 0.5rem;
+}
+
+.size-display {
+  display: block;
+  text-align: center;
+  font-weight: 600;
+  color: var(--secondary);
+}
+
+.run-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.run-button:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.run-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+.progress-indicator {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: var(--surface-light);
+  border-radius: 0.5rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* Results Display Component */
+.results-section {
+  margin-bottom: 2rem;
+}
+
+.results-display {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 2rem;
+}
+
+.results-display h2 {
+  color: var(--primary);
+  margin-bottom: 1.5rem;
+}
+
+.results-display.empty {
+  text-align: center;
+  padding: 3rem;
+}
+
+.empty-message {
+  color: var(--text-muted);
+  font-size: 1.1rem;
+}
+
+.results-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.summary-card {
+  background: var(--surface-light);
+  padding: 1rem;
+  border-radius: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.summary-label {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.summary-value {
+  color: var(--text);
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.icon-success {
+  color: var(--success);
+}
+
+.icon-error {
+  color: var(--danger);
+}
+
+.chart-container {
+  margin-bottom: 2rem;
+}
+
+.chart-container h3 {
+  color: var(--primary);
+  margin-bottom: 1rem;
+}
+
+.results-tables {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.operation-results h3 {
+  color: var(--primary);
+  margin-bottom: 1rem;
+}
+
+.results-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.results-table th {
+  background: var(--surface-light);
+  color: var(--text);
+  padding: 0.75rem;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 2px solid var(--border);
+}
+
+.results-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.results-table tr:hover {
+  background: var(--surface-light);
+}
+
+.speedup-positive {
+  color: var(--success);
+  font-weight: 600;
+}
+
+.speedup-negative {
+  color: var(--danger);
+  font-weight: 600;
+}

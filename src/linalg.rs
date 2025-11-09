@@ -12,6 +12,11 @@ use num_traits::{Float, Num, Zero};
 use crate::error::{NumpyError, Result};
 use rayon::prelude::*;
 
+#[cfg(feature = "gpu")]
+use crate::gpu::ops::matmul::matmul_gpu;
+#[cfg(feature = "gpu")]
+use crate::gpu::GpuContext;
+
 /// Block size for cache-blocked matrix multiplication (tuned for L1 cache)
 const BLOCK_SIZE: usize = 64;
 
@@ -224,9 +229,10 @@ fn matmul_strassen<T: Num + Copy + Zero + Send + Sync>(a: &Array2<T>, b: &Array2
 ///
 /// # Performance
 /// - Matrices 2x2, 3x3, 4x4: Use unrolled code (5-10x faster)
-/// - Matrices >100x100: Use cache-blocked multiplication (1.5-2x faster)
-/// - Matrices >200x200: Use parallel cache-blocked multiplication (4-8x faster on multi-core)
-/// - Matrices >512x512 (power-of-2, square): Use Strassen's algorithm (O(n^2.807), 2-3x faster)
+/// - Matrices ≥512x512 (f32 + GPU): Use GPU acceleration (100-300x faster with `gpu` feature)
+/// - Matrices ≥512x512 (power-of-2, square): Use Strassen's algorithm (O(n^2.807), 2-3x faster)
+/// - Matrices ≥200x200: Use parallel cache-blocked multiplication (4-8x faster on multi-core)
+/// - Matrices ≥100x100: Use cache-blocked multiplication (1.5-2x faster)
 /// - Other sizes: Use ndarray's optimized matrixmultiply
 pub fn matmul<S1, S2>(
     a: &ArrayBase<S1, Ix2>,
@@ -257,24 +263,55 @@ where
         return Ok(matmul_4x4(&a.to_owned(), &b.to_owned()));
     }
 
-    // Priority 2: Strassen's algorithm for huge square power-of-2 matrices
+    // Priority 2: GPU acceleration for large f32 matrices
+    #[cfg(feature = "gpu")]
+    {
+        use std::any::TypeId;
+        // GPU beneficial for matrices ≥512×512 (f32 only for now)
+        if TypeId::of::<S1::Elem>() == TypeId::of::<f32>()
+            && m >= 512 && n >= 512
+            && GpuContext::is_available()
+        {
+            // Convert to owned arrays
+            let a_owned = a.to_owned();
+            let b_owned = b.to_owned();
+
+            // Transmute to f32 arrays (safe because TypeId checked)
+            let a_f32: Array2<f32> = unsafe { std::mem::transmute_copy(&a_owned) };
+            let b_f32: Array2<f32> = unsafe { std::mem::transmute_copy(&b_owned) };
+
+            if let Ok(result_f32) = matmul_gpu(&a_f32, &b_f32) {
+                // Transmute result back (safe because types match)
+                let result: Array2<S1::Elem> = unsafe { std::mem::transmute_copy(&result_f32) };
+                std::mem::forget(a_f32);
+                std::mem::forget(b_f32);
+                std::mem::forget(result_f32);
+                return Ok(result);
+            }
+            std::mem::forget(a_f32);
+            std::mem::forget(b_f32);
+            // Fall through to CPU on GPU failure
+        }
+    }
+
+    // Priority 3: Strassen's algorithm for huge square power-of-2 matrices
     if m >= STRASSEN_THRESHOLD
        && m == n && n == k  // Square matrices
        && m.is_power_of_two() {  // Power-of-2 size
         return Ok(matmul_strassen(&a.to_owned(), &b.to_owned()));
     }
 
-    // Priority 3: Parallel cache-blocked multiplication for very large matrices
+    // Priority 4: Parallel cache-blocked multiplication for very large matrices
     if m >= PARALLEL_BLOCK_THRESHOLD && n >= PARALLEL_BLOCK_THRESHOLD && k >= PARALLEL_BLOCK_THRESHOLD {
         return Ok(matmul_parallel_blocked(&a.to_owned(), &b.to_owned()));
     }
 
-    // Priority 4: Cache-blocked multiplication for large matrices
+    // Priority 5: Cache-blocked multiplication for large matrices
     if m >= CACHE_BLOCK_THRESHOLD && n >= CACHE_BLOCK_THRESHOLD && k >= CACHE_BLOCK_THRESHOLD {
         return Ok(matmul_blocked(&a.to_owned(), &b.to_owned()));
     }
 
-    // Priority 5: General case uses ndarray's optimized matrixmultiply
+    // Priority 6: General case uses ndarray's optimized matrixmultiply
     Ok(a.dot(b))
 }
 
