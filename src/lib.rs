@@ -37,6 +37,10 @@ pub mod fft;
 pub mod sorting;
 pub mod error;
 
+// GPU acceleration (optional feature)
+#[cfg(feature = "gpu")]
+pub mod gpu;
+
 // Re-export commonly used types and functions
 pub mod prelude {
     pub use ndarray::{array, s, Array, Array1, Array2, ArrayD, Axis, Dim, Ix1, Ix2, IxDyn};
