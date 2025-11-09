@@ -35,7 +35,7 @@ pub enum ElementWiseOp {
 /// # Performance
 ///
 /// GPU acceleration is beneficial for arrays ≥100,000 elements.
-pub fn elementwise_gpu<S, D>(
+pub async fn elementwise_gpu<S, D>(
     arr: &ArrayBase<S, D>,
     op: ElementWiseOp,
 ) -> Result<Array<f32, D>>
@@ -204,8 +204,8 @@ where
     #[cfg(not(target_arch = "wasm32"))]
     ctx.device.poll(wgpu::MaintainResult::SubmissionQueueEmpty);
 
-    // Block on the future (works in both WASM and native)
-    futures::executor::block_on(rx)
+    // Await the future (works in both WASM and native)
+    rx.await
         .map_err(|_| NumpyError::LinalgError("Failed to receive buffer mapping".into()))?
         .map_err(|e| NumpyError::LinalgError(format!("Buffer mapping failed: {:?}", e)))?;
 

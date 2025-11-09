@@ -127,8 +127,8 @@ pub async fn read_buffer<T: bytemuck::Pod>(
     #[cfg(not(target_arch = "wasm32"))]
     device.poll(wgpu::MaintainResult::SubmissionQueueEmpty);
 
-    // Block on the future (works in both WASM and native)
-    futures::executor::block_on(rx)
+    // Await the future (works in both WASM and native)
+    rx.await
         .map_err(|_| GpuError::Buffer("Failed to receive buffer mapping result".into()))?
         .map_err(|e| GpuError::Buffer(format!("Buffer mapping failed: {:?}", e)))?;
 

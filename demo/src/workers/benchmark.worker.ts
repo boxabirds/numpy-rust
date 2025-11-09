@@ -164,7 +164,7 @@ async function runMatmulBenchmark(size: number) {
 
   console.log('[Worker] GPU matmul START at:', performance.now());
   const gpuStart = performance.now();
-  const gpuResult = wasmModule.matmul_gpu(a, b, size);
+  const gpuResult = await wasmModule.matmul_gpu(a, b, size);
   const gpuTime = performance.now() - gpuStart;
   console.log('[Worker] GPU matmul END at:', performance.now(), 'took:', gpuTime, 'ms');
 
@@ -225,7 +225,7 @@ async function runSinBenchmark(size: number) {
   // Run GPU benchmark
   postMessage({ type: 'progress', message: `Running GPU sin (${size.toLocaleString()} elements)...` } as WorkerResponse);
   const gpuStart = performance.now();
-  const gpuResult = wasmModule.sin_gpu(input);
+  const gpuResult = await wasmModule.sin_gpu(input);
   const gpuTime = performance.now() - gpuStart;
 
   // Verify correctness
@@ -273,7 +273,7 @@ async function runExpBenchmark(size: number) {
   // Run GPU benchmark
   postMessage({ type: 'progress', message: `Running GPU exp (${size.toLocaleString()} elements)...` } as WorkerResponse);
   const gpuStart = performance.now();
-  const gpuResult = wasmModule.exp_gpu(input);
+  const gpuResult = await wasmModule.exp_gpu(input);
   const gpuTime = performance.now() - gpuStart;
 
   // Verify correctness

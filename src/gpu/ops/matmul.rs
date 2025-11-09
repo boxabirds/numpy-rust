@@ -21,7 +21,7 @@ use crate::error::{NumpyError, Result};
 ///
 /// GPU acceleration is beneficial for matrices ≥512×512.
 /// Smaller matrices should use CPU implementation.
-pub fn matmul_gpu<S1, S2>(
+pub async fn matmul_gpu<S1, S2>(
     a: &ArrayBase<S1, Ix2>,
     b: &ArrayBase<S2, Ix2>,
 ) -> Result<Array2<f32>>
@@ -226,8 +226,8 @@ where
     #[cfg(not(target_arch = "wasm32"))]
     ctx.device.poll(wgpu::MaintainResult::SubmissionQueueEmpty);
 
-    // Block on the future (works in both WASM and native)
-    futures::executor::block_on(rx)
+    // Await the future (works in both WASM and native)
+    rx.await
         .map_err(|_| NumpyError::LinalgError("Failed to receive buffer mapping".into()))?
         .map_err(|e| NumpyError::LinalgError(format!("Buffer mapping failed: {:?}", e)))?;
 
