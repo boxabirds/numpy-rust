@@ -29,6 +29,8 @@ where
     #[cfg(feature = "gpu")]
     {
         use std::any::TypeId;
+        // Only use blocking GPU dispatch on native (WASM uses async bindings directly)
+        #[cfg(not(target_arch = "wasm32"))]
         if TypeId::of::<S::Elem>() == TypeId::of::<f32>()
             && arr.len() >= GPU_THRESHOLD
             && GpuContext::is_available()
@@ -37,7 +39,7 @@ where
             let arr_owned = arr.to_owned();
             let arr_f32: Array<f32, D> = unsafe { std::mem::transmute_copy(&arr_owned) };
 
-            if let Ok(result_f32) = elementwise_gpu(&arr_f32, ElementWiseOp::Sin) {
+            if let Ok(result_f32) = pollster::block_on(elementwise_gpu(&arr_f32, ElementWiseOp::Sin)) {
                 let result: Array<S::Elem, D> = unsafe { std::mem::transmute_copy(&result_f32) };
                 std::mem::forget(arr_f32);
                 std::mem::forget(result_f32);

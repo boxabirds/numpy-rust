@@ -86,7 +86,7 @@ pub fn matmul_cpu(a: Float32Array, b: Float32Array, n: usize) -> Result<Float32A
 
 /// GPU matrix multiplication
 #[wasm_bindgen]
-pub fn matmul_gpu(a: Float32Array, b: Float32Array, n: usize) -> Result<Float32Array, JsValue> {
+pub async fn matmul_gpu(a: Float32Array, b: Float32Array, n: usize) -> Result<Float32Array, JsValue> {
     #[cfg(feature = "gpu")]
     {
         let a_vec: Vec<f32> = a.to_vec();
@@ -97,7 +97,7 @@ pub fn matmul_gpu(a: Float32Array, b: Float32Array, n: usize) -> Result<Float32A
         let b_arr = Array2::from_shape_vec((n, n), b_vec)
             .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
-        let result = crate::gpu::ops::matmul::matmul_gpu(&a_arr, &b_arr)
+        let result = crate::gpu::ops::matmul::matmul_gpu(&a_arr, &b_arr).await
             .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
         let (result_vec, _offset) = result.into_raw_vec_and_offset();
@@ -110,7 +110,7 @@ pub fn matmul_gpu(a: Float32Array, b: Float32Array, n: usize) -> Result<Float32A
 
 /// GPU element-wise sin
 #[wasm_bindgen]
-pub fn sin_gpu(input: Float32Array) -> Result<Float32Array, JsValue> {
+pub async fn sin_gpu(input: Float32Array) -> Result<Float32Array, JsValue> {
     #[cfg(feature = "gpu")]
     {
         use crate::gpu::ops::elementwise::{elementwise_gpu, ElementWiseOp};
@@ -119,7 +119,7 @@ pub fn sin_gpu(input: Float32Array) -> Result<Float32Array, JsValue> {
         let input_vec: Vec<f32> = input.to_vec();
         let input_arr = Array1::from(input_vec);
 
-        let result = elementwise_gpu(&input_arr, ElementWiseOp::Sin)
+        let result = elementwise_gpu(&input_arr, ElementWiseOp::Sin).await
             .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
         let (result_vec, _offset) = result.into_raw_vec_and_offset();
@@ -132,7 +132,7 @@ pub fn sin_gpu(input: Float32Array) -> Result<Float32Array, JsValue> {
 
 /// GPU element-wise exp
 #[wasm_bindgen]
-pub fn exp_gpu(input: Float32Array) -> Result<Float32Array, JsValue> {
+pub async fn exp_gpu(input: Float32Array) -> Result<Float32Array, JsValue> {
     #[cfg(feature = "gpu")]
     {
         use crate::gpu::ops::elementwise::{elementwise_gpu, ElementWiseOp};
@@ -141,7 +141,7 @@ pub fn exp_gpu(input: Float32Array) -> Result<Float32Array, JsValue> {
         let input_vec: Vec<f32> = input.to_vec();
         let input_arr = Array1::from(input_vec);
 
-        let result = elementwise_gpu(&input_arr, ElementWiseOp::Exp)
+        let result = elementwise_gpu(&input_arr, ElementWiseOp::Exp).await
             .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
         let (result_vec, _offset) = result.into_raw_vec_and_offset();

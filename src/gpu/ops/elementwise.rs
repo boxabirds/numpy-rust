@@ -35,7 +35,7 @@ pub enum ElementWiseOp {
 /// # Performance
 ///
 /// GPU acceleration is beneficial for arrays ≥100,000 elements.
-pub fn elementwise_gpu<S, D>(
+pub async fn elementwise_gpu<S, D>(
     arr: &ArrayBase<S, D>,
     op: ElementWiseOp,
 ) -> Result<Array<f32, D>>
@@ -155,7 +155,9 @@ where
         label: Some("Element-wise Pipeline"),
         layout: Some(&pipeline_layout),
         module: &shader,
-        entry_point: "elementwise_op",
+        entry_point: Some("elementwise_op"),
+        compilation_options: Default::default(),
+        cache: None,
     });
 
     // Execute compute pass
@@ -191,13 +193,19 @@ where
 
     // Read back results
     let buffer_slice = staging_buffer.slice(..);
-    let (tx, rx) = std::sync::mpsc::channel();
+
+    // Use oneshot channel for async-friendly buffer mapping
+    let (tx, rx) = futures::channel::oneshot::channel();
     buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-        tx.send(result).unwrap();
+        let _ = tx.send(result);
     });
 
-    ctx.device.poll(wgpu::Maintain::Wait);
-    rx.recv()
+    // In wgpu 27+, polling is handled automatically for WebGPU
+    #[cfg(not(target_arch = "wasm32"))]
+    ctx.device.poll(wgpu::MaintainResult::SubmissionQueueEmpty);
+
+    // Await the future (works in both WASM and native)
+    rx.await
         .map_err(|_| NumpyError::LinalgError("Failed to receive buffer mapping".into()))?
         .map_err(|e| NumpyError::LinalgError(format!("Buffer mapping failed: {:?}", e)))?;
 

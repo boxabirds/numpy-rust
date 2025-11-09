@@ -49,7 +49,7 @@ impl GpuContext {
     /// This is called automatically on first use. It selects the highest
     /// performance GPU available and requests a device.
     pub async fn init() -> Result<ContextPtr> {
-        let instance = Instance::new(wgpu::InstanceDescriptor {
+        let instance = Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             ..Default::default()
         });
@@ -61,22 +61,27 @@ impl GpuContext {
                 force_fallback_adapter: false,
             })
             .await
-            .ok_or(GpuError::NoAdapter)?;
+            .map_err(|_| GpuError::NoAdapter)?;
 
         let adapter_info = adapter.get_info();
+
+        // For WebGPU, use downlevel defaults for maximum compatibility
+        let limits = if cfg!(target_arch = "wasm32") {
+            wgpu::Limits::downlevel_defaults()
+        } else {
+            wgpu::Limits::default()
+        };
 
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: Some("numpy-rust GPU"),
                     required_features: wgpu::Features::empty(),
-                    required_limits: if cfg!(target_arch = "wasm32") {
-                        wgpu::Limits::downlevel_webgl2_defaults()
-                    } else {
-                        wgpu::Limits::default()
-                    },
+                    required_limits: limits,
+                    memory_hints: wgpu::MemoryHints::default(),
+                    experimental_features: Default::default(),
+                    trace: wgpu::Trace::Off,
                 },
-                None,
             )
             .await?;
 

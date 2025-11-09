@@ -268,6 +268,8 @@ where
     {
         use std::any::TypeId;
         // GPU beneficial for matrices ≥512×512 (f32 only for now)
+        // Only use blocking GPU dispatch on native (WASM uses async bindings directly)
+        #[cfg(not(target_arch = "wasm32"))]
         if TypeId::of::<S1::Elem>() == TypeId::of::<f32>()
             && m >= 512 && n >= 512
             && GpuContext::is_available()
@@ -280,7 +282,7 @@ where
             let a_f32: Array2<f32> = unsafe { std::mem::transmute_copy(&a_owned) };
             let b_f32: Array2<f32> = unsafe { std::mem::transmute_copy(&b_owned) };
 
-            if let Ok(result_f32) = matmul_gpu(&a_f32, &b_f32) {
+            if let Ok(result_f32) = pollster::block_on(matmul_gpu(&a_f32, &b_f32)) {
                 // Transmute result back (safe because types match)
                 let result: Array2<S1::Elem> = unsafe { std::mem::transmute_copy(&result_f32) };
                 std::mem::forget(a_f32);

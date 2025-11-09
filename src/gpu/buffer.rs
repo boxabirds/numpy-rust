@@ -116,13 +116,19 @@ pub async fn read_buffer<T: bytemuck::Pod>(
 
     // Map and read
     let buffer_slice = staging_buffer.slice(..);
-    let (tx, rx) = std::sync::mpsc::channel();
+
+    // Use oneshot channel for async-friendly buffer mapping
+    let (tx, rx) = futures::channel::oneshot::channel();
     buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-        tx.send(result).unwrap();
+        let _ = tx.send(result);
     });
 
-    device.poll(wgpu::Maintain::Wait);
-    rx.recv()
+    // In wgpu 27+, polling is handled automatically for WebGPU
+    #[cfg(not(target_arch = "wasm32"))]
+    device.poll(wgpu::MaintainResult::SubmissionQueueEmpty);
+
+    // Await the future (works in both WASM and native)
+    rx.await
         .map_err(|_| GpuError::Buffer("Failed to receive buffer mapping result".into()))?
         .map_err(|e| GpuError::Buffer(format!("Buffer mapping failed: {:?}", e)))?;
 
