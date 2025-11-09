@@ -65,12 +65,19 @@ impl GpuContext {
 
         let adapter_info = adapter.get_info();
 
+        // For WebGPU, use downlevel defaults for maximum compatibility
+        let limits = if cfg!(target_arch = "wasm32") {
+            wgpu::Limits::downlevel_defaults()
+        } else {
+            wgpu::Limits::default()
+        };
+
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
                     label: Some("numpy-rust GPU"),
                     required_features: wgpu::Features::empty(),
-                    required_limits: wgpu::Limits::default(),
+                    required_limits: limits,
                 },
                 None,
             )
