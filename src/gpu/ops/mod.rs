@@ -3,3 +3,4 @@
 //! High-level GPU operations that integrate with ndarray.
 
 pub mod matmul;
+pub mod elementwise;

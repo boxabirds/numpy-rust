@@ -7,16 +7,46 @@ use ndarray::{Array, ArrayBase, Data, DataMut, Dimension};
 use num_traits::{Float, Num, Zero, One};
 use rayon::prelude::*;
 
+#[cfg(feature = "gpu")]
+use crate::gpu::ops::elementwise::{elementwise_gpu, ElementWiseOp};
+#[cfg(feature = "gpu")]
+use crate::gpu::GpuContext;
+
 /// Threshold for using parallel operations (tuned for typical workloads)
 const PARALLEL_THRESHOLD: usize = 10_000;
+
+/// Threshold for using GPU operations
+const GPU_THRESHOLD: usize = 100_000;
 
 /// Compute sine element-wise
 pub fn sin<S, D>(arr: &ArrayBase<S, D>) -> Array<S::Elem, D>
 where
     S: Data,
-    S::Elem: Float + Send + Sync,
+    S::Elem: Float + Send + Sync + 'static,
     D: Dimension,
 {
+    // Try GPU for very large f32 arrays
+    #[cfg(feature = "gpu")]
+    {
+        use std::any::TypeId;
+        if TypeId::of::<S::Elem>() == TypeId::of::<f32>()
+            && arr.len() >= GPU_THRESHOLD
+            && GpuContext::is_available()
+        {
+            // Transmute to f32 array (safe because TypeId checked)
+            let arr_owned = arr.to_owned();
+            let arr_f32: Array<f32, D> = unsafe { std::mem::transmute_copy(&arr_owned) };
+
+            if let Ok(result_f32) = elementwise_gpu(&arr_f32, ElementWiseOp::Sin) {
+                let result: Array<S::Elem, D> = unsafe { std::mem::transmute_copy(&result_f32) };
+                std::mem::forget(arr_f32);
+                std::mem::forget(result_f32);
+                return result;
+            }
+            std::mem::forget(arr_f32);
+        }
+    }
+
     if arr.len() >= PARALLEL_THRESHOLD {
         // Use parallel mapping for large arrays
         let mut result = Array::zeros(arr.raw_dim());
